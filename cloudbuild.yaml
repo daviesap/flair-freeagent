@@ -1,0 +1,13 @@
+steps:
+  - name: 'gcr.io/cloud-builders/gcloud'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        gcloud functions deploy getSecretTest \
+          --runtime nodejs20 \
+          --trigger-http \
+          --region europe-west2 \
+          --allow-unauthenticated \
+          --source=. \
+          --service-account=flair-december-2024@appspot.gserviceaccount.com
