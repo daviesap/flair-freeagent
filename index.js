@@ -1,10 +1,11 @@
-const { SecretManagerServiceClient } = require('@google-cloud/secret-manager');
+// index.js
 const { Firestore } = require('@google-cloud/firestore');
+const { SecretManagerServiceClient } = require('@google-cloud/secret-manager');
 const fetch = require('node-fetch');
-
+const db = new Firestore();
 const secretsClient = new SecretManagerServiceClient();
-const db = new Firestore(); // uses default DB — now confirmed working
 
+// --- Helper to get secret ---
 async function getSecret(name) {
   const [version] = await secretsClient.accessSecretVersion({
     name: `projects/flair-december-2024/secrets/${name}/versions/latest`,
@@ -12,8 +13,7 @@ async function getSecret(name) {
   return version.payload.data.toString('utf8');
 }
 
-
-
+// === 1. OAuth Handler ===
 exports.authCallback = async (req, res) => {
   const { code, state } = req.query;
 
@@ -24,6 +24,7 @@ exports.authCallback = async (req, res) => {
   try {
     const clientId = await getSecret("freeagent-client-id");
     const clientSecret = await getSecret("freeagent-client-secret");
+
     const redirectUri = "https://europe-west2-flair-december-2024.cloudfunctions.net/authCallback";
 
     const tokenResponse = await fetch("https://api.freeagent.com/v2/token_endpoint", {
@@ -46,7 +47,6 @@ exports.authCallback = async (req, res) => {
 
     const tokenData = await tokenResponse.json();
 
-    // Store the tokens in Firestore
     await db.collection('users').doc(state).set({
       access_token: tokenData.access_token,
       refresh_token: tokenData.refresh_token,
@@ -54,13 +54,36 @@ exports.authCallback = async (req, res) => {
       timestamp: new Date().toISOString()
     });
 
-    return res.status(200).send(`
-      <h1>✅ Token Stored</h1>
-      <p>User ID: <strong>${state}</strong></p>
+    res.status(200).send(`
+      ✅ <h1>Token Stored</h1>
+      <p><strong>User ID:</strong> ${state}</p>
       <pre>${JSON.stringify(tokenData, null, 2)}</pre>
     `);
   } catch (err) {
     console.error("OAuth handler error:", err.message);
-    return res.status(500).send("Unexpected error during OAuth process.");
+    res.status(500).send("Unexpected error during OAuth process.");
+  }
+};
+
+// === 2. Admin Dashboard ===
+exports.adminDashboard = async (req, res) => {
+  try {
+    const snapshot = await db.collection('users').get();
+    let html = `
+      <h1>Flair Admin Dashboard</h1>
+      <p>Stored tokens:</p>
+      <ul>
+    `;
+
+    snapshot.forEach(doc => {
+      const data = doc.data();
+      html += `<li><strong>${doc.id}</strong><br><pre>${JSON.stringify(data, null, 2)}</pre></li>`;
+    });
+
+    html += '</ul>';
+    res.status(200).send(html);
+  } catch (err) {
+    console.error("Dashboard error:", err.message);
+    res.status(500).send("Error fetching user data.");
   }
 };

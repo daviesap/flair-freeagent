@@ -2,7 +2,6 @@ options:
   logging: CLOUD_LOGGING_ONLY
 
 steps:
-  # Deploy authCallback function
   - name: 'gcr.io/cloud-builders/gcloud'
     entrypoint: 'bash'
     args:
@@ -17,12 +16,6 @@ steps:
           --entry-point=authCallback \
           --service-account=flair-december-2024@appspot.gserviceaccount.com
 
-  # Deploy adminDashboard function
-  - name: 'gcr.io/cloud-builders/gcloud'
-    entrypoint: 'bash'
-    args:
-      - '-c'
-      - |
         gcloud functions deploy adminDashboard \
           --runtime=nodejs20 \
           --trigger-http \
