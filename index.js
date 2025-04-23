@@ -60,7 +60,11 @@ exports.authCallback = async (req, res) => {
       <pre>${JSON.stringify(tokenData, null, 2)}</pre>
     `);
   } catch (err) {
-    console.error("OAuth handler error:", err.message);
-    res.status(500).send("Unexpected error during OAuth process.");
+    console.error("OAuth handler error:", err);
+    res.status(500).send(`
+      <h1>Unexpected error during OAuth process</h1>
+      <p><strong>Message:</strong> ${err.message}</p>
+      <pre>${err.stack}</pre>
+    `);
   }
 };
