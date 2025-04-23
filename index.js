@@ -65,55 +65,75 @@ async function refreshTokenIfNeeded(userId) {
 
 // === FUNCTION: AUTH CALLBACK ===
 functions.http('authCallback', async (req, res) => {
-    const { code, state } = req.query;
-    if (!code || !state) {
-      return res.status(400).send("Missing 'code' or 'state' parameter.");
+  const { code, state } = req.query;
+  if (!code || !state) {
+    return res.status(400).send("Missing 'code' or 'state' parameter.");
+  }
+
+  try {
+    const clientId = await getSecret("freeagent-client-id");
+    const clientSecret = await getSecret("freeagent-client-secret");
+    const redirectUri = "https://europe-west2-flair-december-2024.cloudfunctions.net/authCallback";
+
+    const tokenResponse = await fetch("https://api.freeagent.com/v2/token_endpoint", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        grant_type: "authorization_code",
+        code,
+        redirect_uri: redirectUri,
+        client_id: clientId,
+        client_secret: clientSecret,
+      }),
+    });
+
+    if (!tokenResponse.ok) {
+      const errorText = await tokenResponse.text();
+      console.error("Token exchange failed:", errorText);
+      return res.status(500).send("Failed to exchange code for token.");
     }
-  
-    try {
-      const clientId = await getSecret("freeagent-client-id");
-      const clientSecret = await getSecret("freeagent-client-secret");
-      const redirectUri = "https://europe-west2-flair-december-2024.cloudfunctions.net/authCallback";
-  
-      const tokenResponse = await fetch("https://api.freeagent.com/v2/token_endpoint", {
-        method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body: new URLSearchParams({
-          grant_type: "authorization_code",
-          code,
-          redirect_uri: redirectUri,
-          client_id: clientId,
-          client_secret: clientSecret,
-        }),
-      });
-  
-      if (!tokenResponse.ok) {
-        const errorText = await tokenResponse.text();
-        console.error("Token exchange failed:", errorText);
-        return res.status(500).send("Failed to exchange code for token.");
-      }
-  
-      const tokenData = await tokenResponse.json();
-  
-      await db.collection('users').doc(state).set({
-        access_token: tokenData.access_token,
-        refresh_token: tokenData.refresh_token,
-        expires_in: tokenData.expires_in,
-        timestamp: new Date().toISOString(),
-      });
-  
-      // ✅ WRITE TO GLIDE
-      const glideResponse = await writeToGlide(state, new Date().toISOString(), "Authenticated");
-      console.log("✅ Glide response:", glideResponse);
-  
-      // ✅ REDIRECT
-      return res.redirect("https://receipts.flair.london");
-  
-    } catch (err) {
-      console.error("OAuth handler error:", err.message);
-      return res.status(500).send("Unexpected error during OAuth process.");
-    }
-  });
+
+    const tokenData = await tokenResponse.json();
+    await db.collection('users').doc(state).set({
+      access_token: tokenData.access_token,
+      refresh_token: tokenData.refresh_token,
+      expires_in: tokenData.expires_in,
+      timestamp: new Date().toISOString(),
+    });
+
+    // Send auth status to Glide
+    const GLIDE_API_TOKEN = "c5389e75-ed50-4e6c-b61d-3d94bfe8deaa";
+    const GLIDE_APP_ID = "UbT1xymHQQ1z7AKL0Z3v";
+    const GLIDE_TABLE_NAME = "native-table-qQtBfW3I3zbQYJd4b3oF";
+
+    await fetch(`https://api.glideapps.com/apps/${GLIDE_APP_ID}/tables/${GLIDE_TABLE_NAME}/rows/${state}`, {
+      method: "PATCH",
+      headers: {
+        Authorization: `Bearer ${GLIDE_API_TOKEN}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        "api-write/timestamp": new Date().toISOString(),
+        "api-write/message": "Authenticated"
+      }),
+    });
+
+    // Redirect to app
+    return res.status(200).send(`
+      <html>
+        <head><title>Redirecting...</title></head>
+        <body>
+          <script>
+            window.location.href = "https://receipts.flair.london";
+          </script>
+        </body>
+      </html>
+    `);
+  } catch (err) {
+    console.error("OAuth handler error:", err.message);
+    res.status(500).send("Unexpected error during OAuth process.");
+  }
+});
 
 // === FUNCTION: ADMIN DASHBOARD ===
 functions.http('adminDashboard', async (req, res) => {
@@ -133,20 +153,21 @@ functions.http('adminDashboard', async (req, res) => {
   }
 });
 
-
-  // === FUNCTION: FREEAGENT INFO FETCH ===
+// === FUNCTION: FREEAGENT API ROUTER ===
 functions.http('FreeAgent', async (req, res) => {
-    const { action, userId } = req.query;
-  
-    if (!action || !userId) {
-      return res.status(400).json({ error: "Missing 'action' or 'userId' parameter." });
-    }
-  
-    try {
-      const accessToken = await refreshTokenIfNeeded(userId);
-      const headers = { Authorization: `Bearer ${accessToken}` };
-  
-      if (action === 'getInfo') {
+  const { action, userId } = req.query;
+  const body = req.body || {};
+
+  if (!action || !userId) {
+    return res.status(400).json({ success: false, message: "Missing 'action' or 'userId'", timestamp: new Date().toISOString() });
+  }
+
+  try {
+    const accessToken = await refreshTokenIfNeeded(userId);
+    const headers = { Authorization: `Bearer ${accessToken}` };
+
+    switch (action) {
+      case 'getInfo': {
         const urls = [
           "https://api.freeagent.com/v2/company",
           "https://api.freeagent.com/v2/users/me",
@@ -154,52 +175,43 @@ functions.http('FreeAgent', async (req, res) => {
           "https://api.freeagent.com/v2/bank_accounts",
           "https://api.freeagent.com/v2/projects?view=active"
         ];
-  
-        const responses = await Promise.all(urls.map(url =>
-          fetch(url, { headers }).then(res => res.json())
-        ));
-  
+
+        const responses = await Promise.all(urls.map(url => fetch(url, { headers }).then(r => r.json())));
         return res.status(200).json({
-          company: responses[0],
-          me: responses[1],
-          categories: responses[2],
-          bank_accounts: responses[3],
-          active_projects: responses[4]
+          success: true,
+          message: "Fetched FreeAgent info successfully",
+          timestamp: new Date().toISOString(),
+          data: {
+            company: responses[0],
+            me: responses[1],
+            categories: responses[2],
+            bank_accounts: responses[3],
+            active_projects: responses[4]
+          }
         });
       }
-  
-      return res.status(400).json({ error: `Unsupported action '${action}'` });
-    } catch (err) {
-      console.error("FreeAgent handler error:", err.message);
-      return res.status(500).json({ error: "Failed to fetch data from FreeAgent." });
-    }
-  });
 
-  // === FUNCTION: WRITE TO GLIDE
-  async function writeToGlide(userId, timestamp, message) {
-    const GLIDE_API_TOKEN = "c5389e75-ed50-4e6c-b61d-3d94bfe8deaa";
-    const GLIDE_APP_ID = "UbT1xymHQQ1z7AKL0Z3v";
-    const GLIDE_TABLE_NAME = "native-table-qQtBfW3I3zbQYJd4b3oF";
-  
-    const glideUrl = `https://api.glideapps.com/apps/${GLIDE_APP_ID}/tables/${GLIDE_TABLE_NAME}/rows/${userId}`;
-    const payload = {
-      "api-write/timestamp": timestamp,
-      "api-write/message": message
-    };
-  
-    const response = await fetch(glideUrl, {
-      method: "PATCH",
-      headers: {
-        Authorization: `Bearer ${GLIDE_API_TOKEN}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify(payload)
-    });
-  
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Glide update failed: ${errorText}`);
+      case 'getTransactions': {
+        const { bankAccount } = body;
+        if (!bankAccount) {
+          return res.status(400).json({ success: false, message: "Missing 'bankAccount' in request body.", timestamp: new Date().toISOString() });
+        }
+
+        const response = await fetch(`https://api.freeagent.com/v2/bank_transactions?bank_account=${bankAccount}&per_page=100`, { headers });
+        const data = await response.json();
+        return res.status(200).json({
+          success: true,
+          message: "Fetched transactions successfully",
+          timestamp: new Date().toISOString(),
+          data
+        });
+      }
+
+      default:
+        return res.status(400).json({ success: false, message: `Unsupported action '${action}'`, timestamp: new Date().toISOString() });
     }
-  
-    return await response.json();
+  } catch (err) {
+    console.error("FreeAgent handler error:", err.message);
+    res.status(500).json({ success: false, message: "Failed to fetch data from FreeAgent.", timestamp: new Date().toISOString() });
   }
+});

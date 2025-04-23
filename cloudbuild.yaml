@@ -7,7 +7,6 @@ steps:
     args:
       - '-c'
       - |
-        # Deploy authCallback
         gcloud functions deploy authCallback \
           --runtime=nodejs20 \
           --trigger-http \
@@ -17,7 +16,6 @@ steps:
           --source=. \
           --service-account=flair-december-2024@appspot.gserviceaccount.com
 
-        # Deploy adminDashboard
         gcloud functions deploy adminDashboard \
           --runtime=nodejs20 \
           --trigger-http \
@@ -27,7 +25,6 @@ steps:
           --source=. \
           --service-account=flair-december-2024@appspot.gserviceaccount.com
 
-        # Deploy FreeAgent API handler
         gcloud functions deploy FreeAgent \
           --runtime=nodejs20 \
           --trigger-http \
