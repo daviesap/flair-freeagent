@@ -63,7 +63,7 @@ async function refreshTokenIfNeeded(userId) {
   return updatedData.access_token;
 }
 
-// === FUNCTION: AUTH CALLBACK ===
+// === FUNCTION: AUTH CALLBACK (NO API KEY CHECK HERE) ===
 functions.http('authCallback', async (req, res) => {
   const { code, state } = req.query;
   if (!code || !state) {
@@ -102,32 +102,22 @@ functions.http('authCallback', async (req, res) => {
       timestamp: new Date().toISOString(),
     });
 
-    // ✅ Notify Glide
-    const glideToken = await getSecret("glide-api-token");
-    const glideAppId = await getSecret("glide-app-id");
-    const glideTable = await getSecret("glide-table-name");
-
+    // Optional: Notify Glide
+    const glideUrl = `https://api.glideapps.com/apps/UbT1xymHQQ1z7AKL0Z3v/tables/native-table-qQtBfW3I3zbQYJd4b3oF/rows/${state}`;
     const glidePayload = {
       "api-write/timestamp": new Date().toISOString(),
       "api-write/message": "Authenticated"
     };
-
-    await fetch(`https://api.glideapps.com/apps/${glideAppId}/tables/${glideTable}/rows/${state}`, {
+    await fetch(glideUrl, {
       method: "PATCH",
       headers: {
-        Authorization: `Bearer ${glideToken}`,
+        Authorization: `Bearer c5389e75-ed50-4e6c-b61d-3d94bfe8deaa`,
         "Content-Type": "application/json"
       },
-      body: JSON.stringify(glidePayload),
+      body: JSON.stringify(glidePayload)
     });
 
-    // ✅ Redirect
-    res.status(200).send(`
-      <script>
-        window.location.href = "https://receipts.flair.london";
-      </script>
-      <p>Redirecting to app...</p>
-    `);
+    return res.redirect("https://receipts.flair.london");
   } catch (err) {
     console.error("OAuth handler error:", err.message);
     res.status(500).send("Unexpected error during OAuth process.");
@@ -152,36 +142,25 @@ functions.http('adminDashboard', async (req, res) => {
   }
 });
 
-// === FUNCTION: FREEAGENT HANDLER ===
+// === FUNCTION: FREEAGENT API HANDLER WITH API KEY CHECK ===
 functions.http('FreeAgent', async (req, res) => {
-  if (req.method !== "POST") {
-    return res.status(405).json({ success: false, message: "Use POST method", timestamp: new Date().toISOString() });
-  }
-
-  const { action, userId, api_key, bank_account } = req.body;
-  if (!action || !userId || !api_key) {
-    return res.status(400).json({
-      success: false,
-      message: "Missing 'action', 'userId', or 'api_key'",
-      timestamp: new Date().toISOString(),
-    });
-  }
+  const { action, userId, bankAccount } = req.body || {};
 
   try {
-    const expectedKey = await getSecret("glide-api-key");
-    if (api_key !== expectedKey) {
-      return res.status(403).json({
-        success: false,
-        message: "Invalid API key",
-        timestamp: new Date().toISOString(),
-      });
+    const expectedApiKey = await getSecret("flair-api-key");
+    if (req.body.api_key !== expectedApiKey) {
+      return res.status(403).json({ success: false, message: "Invalid API key" });
+    }
+
+    if (!action || !userId) {
+      return res.status(400).json({ success: false, message: "Missing 'action' or 'userId'" });
     }
 
     const accessToken = await refreshTokenIfNeeded(userId);
     const headers = { Authorization: `Bearer ${accessToken}` };
 
     switch (action) {
-      case "getInfo": {
+      case 'getInfo': {
         const urls = [
           "https://api.freeagent.com/v2/company",
           "https://api.freeagent.com/v2/users/me",
@@ -189,46 +168,38 @@ functions.http('FreeAgent', async (req, res) => {
           "https://api.freeagent.com/v2/bank_accounts",
           "https://api.freeagent.com/v2/projects?view=active"
         ];
-        const [company, me, categories, bank_accounts, active_projects] = await Promise.all(
-          urls.map(url => fetch(url, { headers }).then(r => r.json()))
-        );
+        const responses = await Promise.all(urls.map(url => fetch(url, { headers }).then(r => r.json())));
         return res.status(200).json({
           success: true,
           message: "Fetched FreeAgent info successfully",
           timestamp: new Date().toISOString(),
-          data: { company, me, categories, bank_accounts, active_projects },
+          data: {
+            company: responses[0],
+            me: responses[1],
+            categories: responses[2],
+            bank_accounts: responses[3],
+            active_projects: responses[4]
+          }
         });
       }
-
-      case "getTransactions": {
-        if (!bank_account) {
-          return res.status(400).json({ success: false, message: "Missing 'bank_account'", timestamp: new Date().toISOString() });
+      case 'getTransactions': {
+        if (!bankAccount) {
+          return res.status(400).json({ success: false, message: "Missing 'bankAccount' for getTransactions" });
         }
-
-        const url = `https://api.freeagent.com/v2/bank_transactions?bank_account=${bank_account}&per_page=100`;
+        const url = `https://api.freeagent.com/v2/bank_transactions?bank_account=${bankAccount}&per_page=100`;
         const result = await fetch(url, { headers }).then(r => r.json());
-
         return res.status(200).json({
           success: true,
-          message: "Fetched transactions",
+          message: "Fetched transactions successfully",
           timestamp: new Date().toISOString(),
-          data: result,
+          data: result
         });
       }
-
       default:
-        return res.status(400).json({
-          success: false,
-          message: `Unsupported action: ${action}`,
-          timestamp: new Date().toISOString(),
-        });
+        return res.status(400).json({ success: false, message: `Unsupported action '${action}'` });
     }
   } catch (err) {
     console.error("FreeAgent handler error:", err.message);
-    return res.status(500).json({
-      success: false,
-      message: "Internal server error",
-      timestamp: new Date().toISOString(),
-    });
+    return res.status(500).json({ success: false, message: "Internal server error" });
   }
 });
