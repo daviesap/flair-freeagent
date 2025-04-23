@@ -65,53 +65,55 @@ async function refreshTokenIfNeeded(userId) {
 
 // === FUNCTION: AUTH CALLBACK ===
 functions.http('authCallback', async (req, res) => {
-  const { code, state } = req.query;
-  if (!code || !state) {
-    return res.status(400).send("Missing 'code' or 'state' parameter.");
-  }
-
-  try {
-    const clientId = await getSecret("freeagent-client-id");
-    const clientSecret = await getSecret("freeagent-client-secret");
-    const redirectUri = "https://europe-west2-flair-december-2024.cloudfunctions.net/authCallback";
-
-    const tokenResponse = await fetch("https://api.freeagent.com/v2/token_endpoint", {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({
-        grant_type: "authorization_code",
-        code,
-        redirect_uri: redirectUri,
-        client_id: clientId,
-        client_secret: clientSecret,
-      }),
-    });
-
-    if (!tokenResponse.ok) {
-      const errorText = await tokenResponse.text();
-      console.error("Token exchange failed:", errorText);
-      return res.status(500).send("Failed to exchange code for token.");
+    const { code, state } = req.query;
+    if (!code || !state) {
+      return res.status(400).send("Missing 'code' or 'state' parameter.");
     }
-
-    const tokenData = await tokenResponse.json();
-
-    await db.collection('users').doc(state).set({
-      access_token: tokenData.access_token,
-      refresh_token: tokenData.refresh_token,
-      expires_in: tokenData.expires_in,
-      timestamp: new Date().toISOString(),
-    });
-
-    res.status(200).send(`
-      <h1>✅ Token Stored</h1>
-      <p><strong>User ID:</strong> ${state}</p>
-      <pre>${JSON.stringify(tokenData, null, 2)}</pre>
-    `);
-  } catch (err) {
-    console.error("OAuth handler error:", err.message);
-    res.status(500).send("Unexpected error during OAuth process.");
-  }
-});
+  
+    try {
+      const clientId = await getSecret("freeagent-client-id");
+      const clientSecret = await getSecret("freeagent-client-secret");
+      const redirectUri = "https://europe-west2-flair-december-2024.cloudfunctions.net/authCallback";
+  
+      const tokenResponse = await fetch("https://api.freeagent.com/v2/token_endpoint", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({
+          grant_type: "authorization_code",
+          code,
+          redirect_uri: redirectUri,
+          client_id: clientId,
+          client_secret: clientSecret,
+        }),
+      });
+  
+      if (!tokenResponse.ok) {
+        const errorText = await tokenResponse.text();
+        console.error("Token exchange failed:", errorText);
+        return res.status(500).send("Failed to exchange code for token.");
+      }
+  
+      const tokenData = await tokenResponse.json();
+  
+      await db.collection('users').doc(state).set({
+        access_token: tokenData.access_token,
+        refresh_token: tokenData.refresh_token,
+        expires_in: tokenData.expires_in,
+        timestamp: new Date().toISOString(),
+      });
+  
+      // ✅ WRITE TO GLIDE
+      const glideResponse = await writeToGlide(state, new Date().toISOString(), "Authenticated");
+      console.log("✅ Glide response:", glideResponse);
+  
+      // ✅ REDIRECT
+      return res.redirect("https://receipts.flair.london");
+  
+    } catch (err) {
+      console.error("OAuth handler error:", err.message);
+      return res.status(500).send("Unexpected error during OAuth process.");
+    }
+  });
 
 // === FUNCTION: ADMIN DASHBOARD ===
 functions.http('adminDashboard', async (req, res) => {
@@ -131,23 +133,6 @@ functions.http('adminDashboard', async (req, res) => {
   }
 });
 
-
-functions.http('testRefresh', async (req, res) => {
-    const userId = req.query.userId;
-    if (!userId) return res.status(400).send("Missing userId");
-  
-    try {
-      const token = await refreshTokenIfNeeded(userId);
-      res.status(200).send(`
-        <h1>✅ Token after refresh check</h1>
-        <p>User ID: ${userId}</p>
-        <pre>${token}</pre>
-      `);
-    } catch (err) {
-      console.error("Refresh test error:", err.message);
-      res.status(500).send(`❌ Refresh test failed: ${err.message}`);
-    }
-  });
 
   // === FUNCTION: FREEAGENT INFO FETCH ===
 functions.http('FreeAgent', async (req, res) => {
@@ -189,3 +174,32 @@ functions.http('FreeAgent', async (req, res) => {
       return res.status(500).json({ error: "Failed to fetch data from FreeAgent." });
     }
   });
+
+  // === FUNCTION: WRITE TO GLIDE
+  async function writeToGlide(userId, timestamp, message) {
+    const GLIDE_API_TOKEN = "c5389e75-ed50-4e6c-b61d-3d94bfe8deaa";
+    const GLIDE_APP_ID = "UbT1xymHQQ1z7AKL0Z3v";
+    const GLIDE_TABLE_NAME = "native-table-qQtBfW3I3zbQYJd4b3oF";
+  
+    const glideUrl = `https://api.glideapps.com/apps/${GLIDE_APP_ID}/tables/${GLIDE_TABLE_NAME}/rows/${userId}`;
+    const payload = {
+      "api-write/timestamp": timestamp,
+      "api-write/message": message
+    };
+  
+    const response = await fetch(glideUrl, {
+      method: "PATCH",
+      headers: {
+        Authorization: `Bearer ${GLIDE_API_TOKEN}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(payload)
+    });
+  
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Glide update failed: ${errorText}`);
+    }
+  
+    return await response.json();
+  }
