@@ -6,10 +6,11 @@
     "node": "20.x"
   },
   "scripts": {
-    "start": "functions-framework --target=getSecretTest"
+    "start": "functions-framework --target=authCallback"
   },
- "dependencies": {
-  "@google-cloud/functions-framework": "^3.3.0",
-  "@google-cloud/secret-manager": "^4.1.4"
-}
+  "dependencies": {
+    "@google-cloud/functions-framework": "^3.3.0",
+    "@google-cloud/secret-manager": "^4.1.4",
+    "node-fetch": "^2.7.0"
+  }
 }
