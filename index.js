@@ -12,6 +12,7 @@ async function getSecret(name) {
   return version.payload.data.toString('utf8');
 }
 
+
 async function refreshTokenIfNeeded(userId) {
   const userDoc = await db.collection('users').doc(userId).get();
   if (!userDoc.exists) {
