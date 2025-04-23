@@ -7,29 +7,32 @@ steps:
     args:
       - '-c'
       - |
+        # Deploy authCallback
         gcloud functions deploy authCallback \
           --runtime=nodejs20 \
           --trigger-http \
           --region=europe-west2 \
-          --entry-point=authCallback \
           --allow-unauthenticated \
+          --entry-point=authCallback \
           --source=. \
           --service-account=flair-december-2024@appspot.gserviceaccount.com
 
+        # Deploy adminDashboard
         gcloud functions deploy adminDashboard \
           --runtime=nodejs20 \
           --trigger-http \
           --region=europe-west2 \
-          --entry-point=adminDashboard \
           --allow-unauthenticated \
+          --entry-point=adminDashboard \
           --source=. \
           --service-account=flair-december-2024@appspot.gserviceaccount.com
 
-          gcloud functions deploy testRefresh \
+        # Deploy FreeAgent API handler
+        gcloud functions deploy FreeAgent \
           --runtime=nodejs20 \
           --trigger-http \
           --region=europe-west2 \
           --allow-unauthenticated \
+          --entry-point=FreeAgent \
           --source=. \
-          --entry-point=testRefresh \
           --service-account=flair-december-2024@appspot.gserviceaccount.com

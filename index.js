@@ -148,3 +148,44 @@ functions.http('testRefresh', async (req, res) => {
       res.status(500).send(`❌ Refresh test failed: ${err.message}`);
     }
   });
+
+  // === FUNCTION: FREEAGENT INFO FETCH ===
+functions.http('FreeAgent', async (req, res) => {
+    const { action, userId } = req.query;
+  
+    if (!action || !userId) {
+      return res.status(400).json({ error: "Missing 'action' or 'userId' parameter." });
+    }
+  
+    try {
+      const accessToken = await refreshTokenIfNeeded(userId);
+      const headers = { Authorization: `Bearer ${accessToken}` };
+  
+      if (action === 'getInfo') {
+        const urls = [
+          "https://api.freeagent.com/v2/company",
+          "https://api.freeagent.com/v2/users/me",
+          "https://api.freeagent.com/v2/categories",
+          "https://api.freeagent.com/v2/bank_accounts",
+          "https://api.freeagent.com/v2/projects?view=active"
+        ];
+  
+        const responses = await Promise.all(urls.map(url =>
+          fetch(url, { headers }).then(res => res.json())
+        ));
+  
+        return res.status(200).json({
+          company: responses[0],
+          me: responses[1],
+          categories: responses[2],
+          bank_accounts: responses[3],
+          active_projects: responses[4]
+        });
+      }
+  
+      return res.status(400).json({ error: `Unsupported action '${action}'` });
+    } catch (err) {
+      console.error("FreeAgent handler error:", err.message);
+      return res.status(500).json({ error: "Failed to fetch data from FreeAgent." });
+    }
+  });
