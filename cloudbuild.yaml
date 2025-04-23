@@ -24,3 +24,12 @@ steps:
           --allow-unauthenticated \
           --source=. \
           --service-account=flair-december-2024@appspot.gserviceaccount.com
+
+          gcloud functions deploy testRefresh \
+          --runtime=nodejs20 \
+          --trigger-http \
+          --region=europe-west2 \
+          --allow-unauthenticated \
+          --source=. \
+          --entry-point=testRefresh \
+          --service-account=flair-december-2024@appspot.gserviceaccount.com
