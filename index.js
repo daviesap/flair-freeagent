@@ -68,3 +68,28 @@ exports.authCallback = async (req, res) => {
     `);
   }
 };
+
+exports.firestoreTest = async (req, res) => {
+  try {
+    const { Firestore } = require('@google-cloud/firestore');
+    const db = new Firestore();
+
+    const testDocRef = db.collection('testCollection').doc('hello-world');
+
+    await testDocRef.set({
+      message: "Hello from Firestore!",
+      timestamp: new Date().toISOString()
+    });
+
+    const doc = await testDocRef.get();
+
+    res.status(200).send(`
+      <h2>Firestore Write Success ✅</h2>
+      <p>Data stored:</p>
+      <pre>${JSON.stringify(doc.data(), null, 2)}</pre>
+    `);
+  } catch (err) {
+    console.error("Firestore test error:", err.message);
+    res.status(500).send(`Firestore error: ${err.message}`);
+  }
+};
