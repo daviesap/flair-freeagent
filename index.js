@@ -225,4 +225,3 @@ functions.http('FreeAgent', async (req, res) => {
     });
   }
 });
-
