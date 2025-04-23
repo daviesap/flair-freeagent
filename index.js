@@ -3,7 +3,7 @@ const { Firestore } = require('@google-cloud/firestore');
 const fetch = require('node-fetch');
 
 const secretsClient = new SecretManagerServiceClient();
-const db = new Firestore();
+const db = new Firestore(); // uses default DB — now confirmed working
 
 async function getSecret(name) {
   const [version] = await secretsClient.accessSecretVersion({
@@ -22,7 +22,6 @@ exports.authCallback = async (req, res) => {
   try {
     const clientId = await getSecret("freeagent-client-id");
     const clientSecret = await getSecret("freeagent-client-secret");
-
     const redirectUri = "https://europe-west2-flair-december-2024.cloudfunctions.net/authCallback";
 
     const tokenResponse = await fetch("https://api.freeagent.com/v2/token_endpoint", {
@@ -45,6 +44,7 @@ exports.authCallback = async (req, res) => {
 
     const tokenData = await tokenResponse.json();
 
+    // Store the tokens in Firestore
     await db.collection('users').doc(state).set({
       access_token: tokenData.access_token,
       refresh_token: tokenData.refresh_token,
@@ -52,13 +52,13 @@ exports.authCallback = async (req, res) => {
       timestamp: new Date().toISOString()
     });
 
-    res.status(200).send(`
-      <h1>Tokens stored in Firestore</h1>
+    return res.status(200).send(`
+      <h1>✅ Token Stored</h1>
       <p>User ID: <strong>${state}</strong></p>
       <pre>${JSON.stringify(tokenData, null, 2)}</pre>
     `);
   } catch (err) {
     console.error("OAuth handler error:", err.message);
-    res.status(500).send("Unexpected error during OAuth process.");
+    return res.status(500).send("Unexpected error during OAuth process.");
   }
 };
