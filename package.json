@@ -1,5 +1,5 @@
 {
-  "name": "get-secret-test",
+  "name": "flair-freeagent",
   "version": "1.0.0",
   "main": "index.js",
   "engines": {
@@ -9,6 +9,6 @@
     "start": "functions-framework --target=getSecretTest"
   },
   "dependencies": {
-    "@google-cloud/functions-framework": "^3.5.1"
+    "@google-cloud/functions-framework": "^3.3.0"
   }
 }
