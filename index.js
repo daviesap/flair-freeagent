@@ -130,3 +130,21 @@ functions.http('adminDashboard', async (req, res) => {
     res.status(500).send("Failed to fetch token data.");
   }
 });
+
+
+functions.http('testRefresh', async (req, res) => {
+    const userId = req.query.userId;
+    if (!userId) return res.status(400).send("Missing userId");
+  
+    try {
+      const token = await refreshTokenIfNeeded(userId);
+      res.status(200).send(`
+        <h1>✅ Token after refresh check</h1>
+        <p>User ID: ${userId}</p>
+        <pre>${token}</pre>
+      `);
+    } catch (err) {
+      console.error("Refresh test error:", err.message);
+      res.status(500).send(`❌ Refresh test failed: ${err.message}`);
+    }
+  });
