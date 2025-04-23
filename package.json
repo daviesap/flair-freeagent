@@ -9,6 +9,6 @@
     "start": "functions-framework --target=getSecretTest"
   },
   "dependencies": {
-    "@google-cloud/functions-framework": "^3.3.0"
+    "@google-cloud/functions-framework": "^3.5.1"
   }
 }
