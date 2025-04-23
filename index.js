@@ -149,7 +149,7 @@ functions.http('FreeAgent', async (req, res) => {
       timestamp: new Date().toISOString(),
     });
   }
-  const expectedKey = await getSecret('flair-api-key');
+  const expectedKey = await getSecret('flair-receipts-api-key');
   //console.log('🔍 Supplied API Key:', api_key);
   //console.log('🔐 Stored  API Key:', expectedKey);
   if (api_key.trim() !== expectedKey.trim()) {
