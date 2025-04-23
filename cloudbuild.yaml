@@ -16,3 +16,4 @@ steps:
           --source=. \
           --entry-point=authCallback \
           --service-account=flair-december-2024@appspot.gserviceaccount.com
+          
