@@ -1,3 +1,6 @@
+options:
+  logging: CLOUD_LOGGING_ONLY
+
 steps:
   - name: 'gcr.io/cloud-builders/gcloud'
     entrypoint: 'bash'
@@ -5,9 +8,9 @@ steps:
       - '-c'
       - |
         gcloud functions deploy getSecretTest \
-          --runtime nodejs20 \
+          --runtime=nodejs20 \
           --trigger-http \
-          --region europe-west2 \
+          --region=europe-west2 \
           --allow-unauthenticated \
           --source=. \
           --service-account=flair-december-2024@appspot.gserviceaccount.com
