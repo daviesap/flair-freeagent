@@ -11,16 +11,16 @@ steps:
           --runtime=nodejs20 \
           --trigger-http \
           --region=europe-west2 \
+          --entry-point=authCallback \
           --allow-unauthenticated \
           --source=. \
-          --entry-point=authCallback \
           --service-account=flair-december-2024@appspot.gserviceaccount.com
 
         gcloud functions deploy adminDashboard \
           --runtime=nodejs20 \
           --trigger-http \
           --region=europe-west2 \
+          --entry-point=adminDashboard \
           --allow-unauthenticated \
           --source=. \
-          --entry-point=adminDashboard \
           --service-account=flair-december-2024@appspot.gserviceaccount.com

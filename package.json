@@ -4,15 +4,15 @@
     "description": "FreeAgent OAuth handler with Firestore and Secret Manager",
     "main": "index.js",
     "scripts": {
-        "start": "functions-framework --target=authCallback"
+      "start": "functions-framework --target=authCallback"
     },
     "engines": {
-        "node": "20"
+      "node": "20"
     },
     "dependencies": {
-        "@google-cloud/firestore": "^7.10.0",
-        "@google-cloud/functions-framework": "^3.5.1",
-        "@google-cloud/secret-manager": "^4.2.0",
-        "node-fetch": "^2.6.7"
+      "@google-cloud/firestore": "^7.10.0",
+      "@google-cloud/functions-framework": "^3.5.1",
+      "@google-cloud/secret-manager": "^4.2.0",
+      "node-fetch": "^2.6.7"
     }
-}
+  }
