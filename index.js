@@ -12,6 +12,8 @@ async function getSecret(name) {
   return version.payload.data.toString('utf8');
 }
 
+
+
 exports.authCallback = async (req, res) => {
   const { code, state } = req.query;
 
