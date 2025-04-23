@@ -10,7 +10,7 @@ steps:
         gcloud functions deploy authCallback \
           --runtime=nodejs20 \
           --trigger-http \
-          --region=global \
+          --region=europe-west2 \
           --allow-unauthenticated \
           --source=. \
           --entry-point=authCallback \
