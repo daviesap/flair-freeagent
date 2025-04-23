@@ -94,6 +94,7 @@ functions.http('authCallback', async (req, res) => {
     }
 
     const tokenData = await tokenResponse.json();
+
     await db.collection('users').doc(state).set({
       access_token: tokenData.access_token,
       refresh_token: tokenData.refresh_token,
@@ -101,33 +102,31 @@ functions.http('authCallback', async (req, res) => {
       timestamp: new Date().toISOString(),
     });
 
-    // Send auth status to Glide
-    const GLIDE_API_TOKEN = "c5389e75-ed50-4e6c-b61d-3d94bfe8deaa";
-    const GLIDE_APP_ID = "UbT1xymHQQ1z7AKL0Z3v";
-    const GLIDE_TABLE_NAME = "native-table-qQtBfW3I3zbQYJd4b3oF";
+    // ✅ Notify Glide
+    const glideToken = await getSecret("glide-api-token");
+    const glideAppId = await getSecret("glide-app-id");
+    const glideTable = await getSecret("glide-table-name");
 
-    await fetch(`https://api.glideapps.com/apps/${GLIDE_APP_ID}/tables/${GLIDE_TABLE_NAME}/rows/${state}`, {
+    const glidePayload = {
+      "api-write/timestamp": new Date().toISOString(),
+      "api-write/message": "Authenticated"
+    };
+
+    await fetch(`https://api.glideapps.com/apps/${glideAppId}/tables/${glideTable}/rows/${state}`, {
       method: "PATCH",
       headers: {
-        Authorization: `Bearer ${GLIDE_API_TOKEN}`,
-        "Content-Type": "application/json",
+        Authorization: `Bearer ${glideToken}`,
+        "Content-Type": "application/json"
       },
-      body: JSON.stringify({
-        "api-write/timestamp": new Date().toISOString(),
-        "api-write/message": "Authenticated"
-      }),
+      body: JSON.stringify(glidePayload),
     });
 
-    // Redirect to app
-    return res.status(200).send(`
-      <html>
-        <head><title>Redirecting...</title></head>
-        <body>
-          <script>
-            window.location.href = "https://receipts.flair.london";
-          </script>
-        </body>
-      </html>
+    // ✅ Redirect
+    res.status(200).send(`
+      <script>
+        window.location.href = "https://receipts.flair.london";
+      </script>
+      <p>Redirecting to app...</p>
     `);
   } catch (err) {
     console.error("OAuth handler error:", err.message);
@@ -153,21 +152,36 @@ functions.http('adminDashboard', async (req, res) => {
   }
 });
 
-// === FUNCTION: FREEAGENT API ROUTER ===
+// === FUNCTION: FREEAGENT HANDLER ===
 functions.http('FreeAgent', async (req, res) => {
-  const { action, userId } = req.query;
-  const body = req.body || {};
+  if (req.method !== "POST") {
+    return res.status(405).json({ success: false, message: "Use POST method", timestamp: new Date().toISOString() });
+  }
 
-  if (!action || !userId) {
-    return res.status(400).json({ success: false, message: "Missing 'action' or 'userId'", timestamp: new Date().toISOString() });
+  const { action, userId, api_key, bank_account } = req.body;
+  if (!action || !userId || !api_key) {
+    return res.status(400).json({
+      success: false,
+      message: "Missing 'action', 'userId', or 'api_key'",
+      timestamp: new Date().toISOString(),
+    });
   }
 
   try {
+    const expectedKey = await getSecret("glide-api-key");
+    if (api_key !== expectedKey) {
+      return res.status(403).json({
+        success: false,
+        message: "Invalid API key",
+        timestamp: new Date().toISOString(),
+      });
+    }
+
     const accessToken = await refreshTokenIfNeeded(userId);
     const headers = { Authorization: `Bearer ${accessToken}` };
 
     switch (action) {
-      case 'getInfo': {
+      case "getInfo": {
         const urls = [
           "https://api.freeagent.com/v2/company",
           "https://api.freeagent.com/v2/users/me",
@@ -175,43 +189,46 @@ functions.http('FreeAgent', async (req, res) => {
           "https://api.freeagent.com/v2/bank_accounts",
           "https://api.freeagent.com/v2/projects?view=active"
         ];
-
-        const responses = await Promise.all(urls.map(url => fetch(url, { headers }).then(r => r.json())));
+        const [company, me, categories, bank_accounts, active_projects] = await Promise.all(
+          urls.map(url => fetch(url, { headers }).then(r => r.json()))
+        );
         return res.status(200).json({
           success: true,
           message: "Fetched FreeAgent info successfully",
           timestamp: new Date().toISOString(),
-          data: {
-            company: responses[0],
-            me: responses[1],
-            categories: responses[2],
-            bank_accounts: responses[3],
-            active_projects: responses[4]
-          }
+          data: { company, me, categories, bank_accounts, active_projects },
         });
       }
 
-      case 'getTransactions': {
-        const { bankAccount } = body;
-        if (!bankAccount) {
-          return res.status(400).json({ success: false, message: "Missing 'bankAccount' in request body.", timestamp: new Date().toISOString() });
+      case "getTransactions": {
+        if (!bank_account) {
+          return res.status(400).json({ success: false, message: "Missing 'bank_account'", timestamp: new Date().toISOString() });
         }
 
-        const response = await fetch(`https://api.freeagent.com/v2/bank_transactions?bank_account=${bankAccount}&per_page=100`, { headers });
-        const data = await response.json();
+        const url = `https://api.freeagent.com/v2/bank_transactions?bank_account=${bank_account}&per_page=100`;
+        const result = await fetch(url, { headers }).then(r => r.json());
+
         return res.status(200).json({
           success: true,
-          message: "Fetched transactions successfully",
+          message: "Fetched transactions",
           timestamp: new Date().toISOString(),
-          data
+          data: result,
         });
       }
 
       default:
-        return res.status(400).json({ success: false, message: `Unsupported action '${action}'`, timestamp: new Date().toISOString() });
+        return res.status(400).json({
+          success: false,
+          message: `Unsupported action: ${action}`,
+          timestamp: new Date().toISOString(),
+        });
     }
   } catch (err) {
     console.error("FreeAgent handler error:", err.message);
-    res.status(500).json({ success: false, message: "Failed to fetch data from FreeAgent.", timestamp: new Date().toISOString() });
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error",
+      timestamp: new Date().toISOString(),
+    });
   }
 });
