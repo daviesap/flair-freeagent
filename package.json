@@ -8,9 +8,10 @@
   "scripts": {
     "start": "functions-framework --target=authCallback"
   },
-  "dependencies": {
-    "@google-cloud/functions-framework": "^3.3.0",
-    "@google-cloud/secret-manager": "^4.1.4",
-    "node-fetch": "^2.7.0"
-  }
+"dependencies": {
+  "@google-cloud/functions-framework": "^3.3.0",
+  "@google-cloud/secret-manager": "^4.1.4",
+  "@google-cloud/firestore": "^6.7.1",
+  "node-fetch": "^2.6.9"
+}
 }

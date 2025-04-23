@@ -1,10 +1,12 @@
 const { SecretManagerServiceClient } = require('@google-cloud/secret-manager');
+const { Firestore } = require('@google-cloud/firestore');
 const fetch = require('node-fetch');
 
-const client = new SecretManagerServiceClient();
+const secretsClient = new SecretManagerServiceClient();
+const db = new Firestore();
 
 async function getSecret(name) {
-  const [version] = await client.accessSecretVersion({
+  const [version] = await secretsClient.accessSecretVersion({
     name: `projects/flair-december-2024/secrets/${name}/versions/latest`,
   });
   return version.payload.data.toString('utf8');
@@ -21,9 +23,9 @@ exports.authCallback = async (req, res) => {
     const clientId = await getSecret("freeagent-client-id");
     const clientSecret = await getSecret("freeagent-client-secret");
 
-    const redirectUri = "https://flair-receipts-513031796891.europe-west2.run.app"; // Replace with your Cloud Function's URL
+    const redirectUri = "https://europe-west2-flair-december-2024.cloudfunctions.net/authCallback";
 
-    const response = await fetch("https://api.freeagent.com/v2/token_endpoint", {
+    const tokenResponse = await fetch("https://api.freeagent.com/v2/token_endpoint", {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: new URLSearchParams({
@@ -35,23 +37,28 @@ exports.authCallback = async (req, res) => {
       })
     });
 
-    if (!response.ok) {
-      const errorText = await response.text();
+    if (!tokenResponse.ok) {
+      const errorText = await tokenResponse.text();
       console.error("Token exchange failed:", errorText);
       return res.status(500).send("Failed to exchange code for token.");
     }
 
-    const tokenData = await response.json();
+    const tokenData = await tokenResponse.json();
 
-    // 🧪 For testing only: display the result
+    // 🔐 Store tokens in Firestore using `state` as user ID
+    await db.collection('users').doc(state).set({
+      access_token: tokenData.access_token,
+      refresh_token: tokenData.refresh_token,
+      expires_in: tokenData.expires_in,
+      timestamp: new Date().toISOString()
+    });
+
+    // ✅ Success message
     res.status(200).send(`
-      <h1>Token Received from FreeAgent</h1>
-      <p><strong>User ID (state):</strong> ${state}</p>
+      <h1>Tokens stored in Firestore</h1>
+      <p>User ID: <strong>${state}</strong></p>
       <pre>${JSON.stringify(tokenData, null, 2)}</pre>
     `);
-
-    // 🔜 TODO: Store tokens in Firestore or update Glide
-
   } catch (err) {
     console.error("OAuth handler error:", err.message);
     res.status(500).send("Unexpected error during OAuth process.");
