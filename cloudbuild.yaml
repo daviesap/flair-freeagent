@@ -1,8 +1,8 @@
 options:
   logging: CLOUD_LOGGING_ONLY
-  defaultLogsBucketBehavior: REGIONAL_USER_OWNED_BUCKET
 
 steps:
+  # Deploy authCallback function
   - name: 'gcr.io/cloud-builders/gcloud'
     entrypoint: 'bash'
     args:
@@ -16,4 +16,18 @@ steps:
           --source=. \
           --entry-point=authCallback \
           --service-account=flair-december-2024@appspot.gserviceaccount.com
-          
+
+  # Deploy adminDashboard function
+  - name: 'gcr.io/cloud-builders/gcloud'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        gcloud functions deploy adminDashboard \
+          --runtime=nodejs20 \
+          --trigger-http \
+          --region=europe-west2 \
+          --allow-unauthenticated \
+          --source=. \
+          --entry-point=adminDashboard \
+          --service-account=flair-december-2024@appspot.gserviceaccount.com
