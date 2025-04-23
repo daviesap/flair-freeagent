@@ -1,14 +1,18 @@
 {
     "name": "flair-auth",
     "version": "1.0.0",
+    "description": "FreeAgent OAuth handler with Firestore and Secret Manager",
     "main": "index.js",
     "scripts": {
       "start": "functions-framework --target=authCallback"
     },
- "dependencies": {
-  "@google-cloud/firestore": "^7.10.0",
-  "@google-cloud/secret-manager": "^4.2.0",
-  "@google-cloud/functions-framework": "^3.1.3",
-  "node-fetch": "^2.6.7"
-}
+    "engines": {
+      "node": "20"
+    },
+    "dependencies": {
+      "@google-cloud/firestore": "^7.10.0",
+      "@google-cloud/functions-framework": "^3.1.3",
+      "@google-cloud/secret-manager": "^4.2.0",
+      "node-fetch": "^2.6.7"
+    }
   }
