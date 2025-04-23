@@ -1,17 +1,14 @@
 {
-  "name": "flair-freeagent",
-  "version": "1.0.0",
-  "main": "index.js",
-  "engines": {
-    "node": "20.x"
-  },
-  "scripts": {
-    "start": "functions-framework --target=authCallback"
-  },
-"dependencies": {
-  "@google-cloud/functions-framework": "^3.3.0",
-  "@google-cloud/secret-manager": "^4.1.4",
-  "@google-cloud/firestore": "^6.7.1",
-  "node-fetch": "^2.6.9"
-}
-}
+    "name": "flair-auth",
+    "version": "1.0.0",
+    "main": "index.js",
+    "scripts": {
+      "start": "functions-framework --target=authCallback"
+    },
+    "dependencies": {
+      "@google-cloud/firestore": "^7.13.0",
+      "@google-cloud/functions-framework": "^3.1.3",
+      "@google-cloud/secret-manager": "^4.4.0",
+      "node-fetch": "^2.6.7"
+    }
+  }

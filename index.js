@@ -45,7 +45,6 @@ exports.authCallback = async (req, res) => {
 
     const tokenData = await tokenResponse.json();
 
-    // 🔐 Store tokens in Firestore using `state` as user ID
     await db.collection('users').doc(state).set({
       access_token: tokenData.access_token,
       refresh_token: tokenData.refresh_token,
@@ -53,43 +52,13 @@ exports.authCallback = async (req, res) => {
       timestamp: new Date().toISOString()
     });
 
-    // ✅ Success message
     res.status(200).send(`
       <h1>Tokens stored in Firestore</h1>
       <p>User ID: <strong>${state}</strong></p>
       <pre>${JSON.stringify(tokenData, null, 2)}</pre>
     `);
   } catch (err) {
-    console.error("OAuth handler error:", err);
-    res.status(500).send(`
-      <h1>Unexpected error during OAuth process</h1>
-      <p><strong>Message:</strong> ${err.message}</p>
-      <pre>${err.stack}</pre>
-    `);
-  }
-};
-
-exports.firestoreTest = async (req, res) => {
-  try {
-    const { Firestore } = require('@google-cloud/firestore');
-    const db = new Firestore();
-
-    const testDocRef = db.collection('testCollection').doc('hello-world');
-
-    await testDocRef.set({
-      message: "Hello from Firestore!",
-      timestamp: new Date().toISOString()
-    });
-
-    const doc = await testDocRef.get();
-
-    res.status(200).send(`
-      <h2>Firestore Write Success ✅</h2>
-      <p>Data stored:</p>
-      <pre>${JSON.stringify(doc.data(), null, 2)}</pre>
-    `);
-  } catch (err) {
-    console.error("Firestore test error:", err.message);
-    res.status(500).send(`Firestore error: ${err.message}`);
+    console.error("OAuth handler error:", err.message);
+    res.status(500).send("Unexpected error during OAuth process.");
   }
 };
