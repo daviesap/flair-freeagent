@@ -7,10 +7,11 @@ steps:
     args:
       - '-c'
       - |
-        gcloud functions deploy getSecretTest \
+        gcloud functions deploy authCallback \
           --runtime=nodejs20 \
           --trigger-http \
           --region=europe-west2 \
           --allow-unauthenticated \
+          --entry-point=authCallback \
           --source=. \
           --service-account=flair-december-2024@appspot.gserviceaccount.com
