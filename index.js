@@ -63,7 +63,7 @@ async function refreshTokenIfNeeded(userId) {
   return updatedData.access_token;
 }
 
-// === FUNCTION: AUTH CALLBACK (NO API KEY CHECK HERE) ===
+// === FUNCTION: AUTH CALLBACK ===
 functions.http('authCallback', async (req, res) => {
   const { code, state } = req.query;
   if (!code || !state) {
@@ -94,7 +94,6 @@ functions.http('authCallback', async (req, res) => {
     }
 
     const tokenData = await tokenResponse.json();
-
     await db.collection('users').doc(state).set({
       access_token: tokenData.access_token,
       refresh_token: tokenData.refresh_token,
@@ -102,22 +101,13 @@ functions.http('authCallback', async (req, res) => {
       timestamp: new Date().toISOString(),
     });
 
-    // Optional: Notify Glide
-    const glideUrl = `https://api.glideapps.com/apps/UbT1xymHQQ1z7AKL0Z3v/tables/native-table-qQtBfW3I3zbQYJd4b3oF/rows/${state}`;
-    const glidePayload = {
-      "api-write/timestamp": new Date().toISOString(),
-      "api-write/message": "Authenticated"
-    };
-    await fetch(glideUrl, {
-      method: "PATCH",
-      headers: {
-        Authorization: `Bearer c5389e75-ed50-4e6c-b61d-3d94bfe8deaa`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify(glidePayload)
-    });
-
-    return res.redirect("https://receipts.flair.london");
+    // Optional: Write to Glide table (if you want to notify the app)
+    // Optional: Redirect to your app
+    res.status(200).send(`
+      <h1>✅ Token Stored</h1>
+      <p><strong>User ID:</strong> ${state}</p>
+      <pre>${JSON.stringify(tokenData, null, 2)}</pre>
+    `);
   } catch (err) {
     console.error("OAuth handler error:", err.message);
     res.status(500).send("Unexpected error during OAuth process.");
@@ -142,14 +132,18 @@ functions.http('adminDashboard', async (req, res) => {
   }
 });
 
-// === FUNCTION: FREEAGENT API HANDLER WITH API KEY CHECK ===
+// === FUNCTION: FREEAGENT MULTI-API HANDLER ===
 functions.http('FreeAgent', async (req, res) => {
-  const { action, userId, bankAccount } = req.body || {};
+  if (req.method !== 'POST') {
+    return res.status(405).json({ success: false, message: "Only POST requests are accepted" });
+  }
+
+  const { api_key, action, userId, bankAccount } = req.body;
 
   try {
-    const expectedApiKey = await getSecret("flair-api-key");
-    if (req.body.api_key !== expectedApiKey) {
-      return res.status(403).json({ success: false, message: "Invalid API key" });
+    const expectedKey = await getSecret("glide-api-key");
+    if (api_key !== expectedKey) {
+      return res.status(403).json({ success: false, message: "Invalid API key." });
     }
 
     if (!action || !userId) {
@@ -182,24 +176,26 @@ functions.http('FreeAgent', async (req, res) => {
           }
         });
       }
+
       case 'getTransactions': {
         if (!bankAccount) {
-          return res.status(400).json({ success: false, message: "Missing 'bankAccount' for getTransactions" });
+          return res.status(400).json({ success: false, message: "Missing 'bankAccount' in request body" });
         }
         const url = `https://api.freeagent.com/v2/bank_transactions?bank_account=${bankAccount}&per_page=100`;
-        const result = await fetch(url, { headers }).then(r => r.json());
+        const data = await fetch(url, { headers }).then(r => r.json());
         return res.status(200).json({
           success: true,
           message: "Fetched transactions successfully",
           timestamp: new Date().toISOString(),
-          data: result
+          data
         });
       }
+
       default:
-        return res.status(400).json({ success: false, message: `Unsupported action '${action}'` });
+        return res.status(400).json({ success: false, message: `Unknown action '${action}'` });
     }
   } catch (err) {
     console.error("FreeAgent handler error:", err.message);
-    return res.status(500).json({ success: false, message: "Internal server error" });
+    return res.status(500).json({ success: false, message: "Unexpected error." });
   }
 });
