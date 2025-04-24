@@ -51,10 +51,10 @@ gcloud functions deploy adminDashboard \
 
   4) See what’s deployed
 
-List all your functions (in a region or across all regions):
+List all your functions
 
 # Only europe-west2
-gcloud functions list --region=europe-west2
+gcloud functions list --regions=europe-west2
 
 # All regions
 gcloud functions list
