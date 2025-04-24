@@ -136,6 +136,60 @@ functions.http('adminDashboard', async (req, res) => {
   }
 });
 
+// === IMPORTS ===
+const { SecretManagerServiceClient } = require('@google-cloud/secret-manager');
+const { Firestore }                  = require('@google-cloud/firestore');
+const fetch                          = require('node-fetch');
+const functions                      = require('@google-cloud/functions-framework');
+
+const secretsClient = new SecretManagerServiceClient();
+const db            = new Firestore();
+
+// === UTILITY: GET SECRET ===
+async function getSecret(name) {
+  const [version] = await secretsClient.accessSecretVersion({
+    name: `projects/flair-december-2024/secrets/${name}/versions/latest`,
+  });
+  return version.payload.data.toString('utf8').trim();
+}
+
+// === UTILITY: REFRESH TOKEN IF NEEDED ===
+async function refreshTokenIfNeeded(userId) {
+  const userDoc = await db.collection('users').doc(userId).get();
+  if (!userDoc.exists) {
+    throw new Error(`User ${userId} not found in Firestore.`);
+  }
+  const { access_token, refresh_token, expires_in, timestamp } = userDoc.data();
+  const elapsed = (Date.now() - new Date(timestamp)) / 1000;
+  if (elapsed < expires_in - 60) {
+    return access_token;
+  }
+  const clientId     = await getSecret('freeagent-client-id');
+  const clientSecret = await getSecret('freeagent-client-secret');
+  const resp = await fetch('https://api.freeagent.com/v2/token_endpoint', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      grant_type:    'refresh_token',
+      refresh_token: refresh_token,
+      client_id:     clientId,
+      client_secret: clientSecret,
+    }),
+  });
+  if (!resp.ok) {
+    throw new Error(`Failed to refresh token: ${await resp.text()}`);
+  }
+  const nt = await resp.json();
+  const updated = {
+    access_token:  nt.access_token,
+    refresh_token: nt.refresh_token || refresh_token,
+    expires_in:    nt.expires_in,
+    timestamp:     new Date().toISOString(),
+  };
+  await db.collection('users').doc(userId).set(updated, { merge: true });
+  return updated.access_token;
+}
+
 // === FUNCTION: FREEAGENT MAIN HANDLER ===
 functions.http('FreeAgent', async (req, res) => {
   if (req.method !== 'POST') {
@@ -144,7 +198,7 @@ functions.http('FreeAgent', async (req, res) => {
       .json({ success: false, message: 'Only POST supported.' });
   }
 
-  // pull all relevant fields from the JSON body
+  // extract body params
   const {
     action,
     userId,
@@ -157,10 +211,11 @@ functions.http('FreeAgent', async (req, res) => {
     dated_on,
     description,
     category,
-    attachment
+    attachment,
+    htmlBody
   } = req.body || {};
 
-  // basic validation
+  // validate
   if (!action || !userId || !api_key) {
     return res.status(400).json({
       success:   false,
@@ -169,7 +224,7 @@ functions.http('FreeAgent', async (req, res) => {
     });
   }
 
-  // verify our own API key
+  // check our api key
   const expectedKey = await getSecret('flair-receipts-api-key');
   if (api_key.trim() !== expectedKey.trim()) {
     return res.status(403).json({
@@ -180,7 +235,6 @@ functions.http('FreeAgent', async (req, res) => {
   }
 
   try {
-    // ensure a valid FreeAgent access token
     const accessToken = await refreshTokenIfNeeded(userId);
     const headers     = { Authorization: `Bearer ${accessToken}` };
 
@@ -201,32 +255,31 @@ functions.http('FreeAgent', async (req, res) => {
           success:   true,
           message:   'Fetched FreeAgent info successfully',
           timestamp: new Date().toISOString(),
-          data: { company, me, categories, bank_accounts, active_projects },
+          data:      { company, me, categories, bank_accounts, active_projects },
         });
       }
 
       // --- getTransactions ---
       case 'getTransactions': {
-        const account = bank_account || bankAccount;
-        if (!account) {
+        const acct = bank_account || bankAccount;
+        if (!acct) {
           return res.status(400).json({
             success:   false,
             message:   "Missing 'bank_account' in request body.",
             timestamp: new Date().toISOString(),
           });
         }
-
-        const url      = `https://api.freeagent.com/v2/bank_transactions?bank_account=${encodeURIComponent(account)}&per_page=100`;
-        const response = await fetch(url, { headers });
-        if (!response.ok) {
-          const errText = await response.text();
-          return res.status(response.status).json({
+        const url      = `https://api.freeagent.com/v2/bank_transactions?bank_account=${encodeURIComponent(acct)}&per_page=100`;
+        const resp     = await fetch(url, { headers });
+        if (!resp.ok) {
+          const t = await resp.text();
+          return res.status(resp.status).json({
             success:   false,
-            message:   `FreeAgent API error: ${errText}`,
+            message:   `FreeAgent API error: ${t}`,
             timestamp: new Date().toISOString(),
           });
         }
-        const data = await response.json();
+        const data = await resp.json();
         return res.status(200).json({
           success:   true,
           message:   'Fetched transactions successfully',
@@ -237,82 +290,75 @@ functions.http('FreeAgent', async (req, res) => {
 
       // --- attachReceipt ---
       case 'attachReceipt': {
-        // 1) Validate required fields
-        if (!bankTransactionUrl || !attachment || !category) {
+        if (!bankTransactionUrl || !(attachment || htmlBody) || !category) {
           return res.status(400).json({
             success:   false,
-            message:   "Missing required fields: bankTransactionUrl, attachment or category",
+            message:   "Missing required fields: bankTransactionUrl, (attachment or htmlBody), category",
             timestamp: new Date().toISOString(),
           });
         }
-
         try {
-          // 2) Normalize full URLs → relative paths
-          const txPath  = new URL(bankTransactionUrl).pathname;            // "/v2/bank_transactions/…"
-          const catPath = new URL(category).pathname;                      // "/v2/categories/…"
-          const delPath = explanationUrl
-                          ? new URL(explanationUrl).pathname             // "/v2/bank_transaction_explanations/…"
-                          : null;
+          // normalize to relative paths
+          const txPath  = new URL(bankTransactionUrl).pathname;
+          const catPath = new URL(category).pathname;
+          const delPath = explanationUrl ? new URL(explanationUrl).pathname : null;
 
-          // 3) Delete existing explanation if provided
+          // delete existing
           if (delPath) {
-            const del = await fetch(`https://api.freeagent.com${delPath}`, {
-              method: 'DELETE',
-              headers
-            });
-            if (!del.ok) {
-              console.warn('Warning: delete explanation failed:', await del.text());
-            }
+            const d = await fetch(`https://api.freeagent.com${delPath}`, { method: 'DELETE', headers });
+            if (!d.ok) console.warn('delete failed:', await d.text());
           }
 
-          // 4) Download & encode the attachment
-          const fileResp = await fetch(attachment);
-          if (!fileResp.ok) {
-            throw new Error(`Failed to fetch attachment at ${attachment}`);
+          // build attachmentPayload
+          let attachmentPayload = null;
+          if (attachment) {
+            const f = await fetch(attachment);
+            if (!f.ok) throw new Error(`fetch attach URL failed`);
+            const buf  = await f.arrayBuffer();
+            attachmentPayload = {
+              data:         Buffer.from(buf).toString('base64'),
+              content_type: f.headers.get('content-type') || 'application/octet-stream',
+              file_name:    attachment.split('/').pop().split('?')[0],
+            };
+          } else {
+            // htmlBody case
+            attachmentPayload = {
+              data:         Buffer.from(htmlBody).toString('base64'),
+              content_type: 'text/html',
+              file_name:    'attachment.html',
+            };
           }
-          const arrayBuf   = await fileResp.arrayBuffer();
-          const base64Data = Buffer.from(arrayBuf).toString('base64');
-          const contentType = fileResp.headers.get('content-type') || 'application/octet-stream';
-          const fileName    = attachment.split('/').pop().split('?')[0];
 
-          // 5) Build payload matching your GAS structure
+          // payload
           const payload = {
             bank_transaction_explanation: {
               bank_transaction:   txPath,
               dated_on:           dated_on,
               description:        description,
-              gross_value:        gross_value,       // GAS‐style
-              explanation_amount: gross_value,       // API‐required
+              gross_value:        gross_value,
+              explanation_amount: gross_value,
               category:           catPath,
-              attachment: {
-                data:         base64Data,
-                content_type: contentType,
-                file_name:    fileName
-              }
+              attachment:         attachmentPayload
             }
           };
 
-          // 6) POST to FreeAgent
-          const createResp = await fetch(
+          const cr = await fetch(
             'https://api.freeagent.com/v2/bank_transaction_explanations',
             {
-              method: 'POST',
+              method:  'POST',
               headers: { ...headers, 'Content-Type': 'application/json' },
               body:    JSON.stringify(payload),
             }
           );
-
-          if (!createResp.ok) {
-            const errText = await createResp.text();
-            console.error('📦 FreeAgent error body:', errText);
-            return res.status(createResp.status).json({
+          if (!cr.ok) {
+            const errText = await cr.text();
+            return res.status(cr.status).json({
               success:   false,
               message:   `FreeAgent API error: ${errText}`,
               timestamp: new Date().toISOString(),
             });
           }
 
-          // 7) Success response
           return res.status(200).json({
             info: {
               success:   true,
@@ -340,7 +386,7 @@ functions.http('FreeAgent', async (req, res) => {
         });
     }
   } catch (err) {
-    console.error('FreeAgent handler error:', err.message);
+    console.error('FreeAgent handler error:', err);
     return res.status(500).json({
       success:   false,
       message:   'Unexpected error.',
