@@ -141,7 +141,22 @@ functions.http('FreeAgent', async (req, res) => {
   if (req.method !== 'POST') {
     return res.status(405).json({ success: false, message: 'Only POST supported.' });
   }
-  const { userId, api_key, action, bank_account, bankAccount } = req.body || {};
+
+  // pull everything we need out of the JSON body
+  const {
+    userId,
+    api_key,
+    action,
+    bank_account,
+    bankAccount,
+    bankTransactionUrl,
+    explanationUrl,
+    gross_value,
+    dated_on,
+    description,
+    attachment
+  } = req.body || {};
+
   if (!userId || !api_key || !action) {
     return res.status(400).json({
       success: false,
@@ -149,16 +164,24 @@ functions.http('FreeAgent', async (req, res) => {
       timestamp: new Date().toISOString(),
     });
   }
+
+  // check your own API key
   const expectedKey = await getSecret('flair-receipts-api-key');
-  //console.log('🔍 Supplied API Key:', api_key);
-  //console.log('🔐 Stored  API Key:', expectedKey);
   if (api_key.trim() !== expectedKey.trim()) {
-    return res.status(403).json({ success: false, message: 'Invalid api_key', timestamp: new Date().toISOString() });
+    return res.status(403).json({
+      success:   false,
+      message:   'Invalid api_key',
+      timestamp: new Date().toISOString(),
+    });
   }
+
   try {
+    // ensure we have a fresh FreeAgent access token
     const accessToken = await refreshTokenIfNeeded(userId);
-    const headers = { Authorization: `Bearer ${accessToken}` };
+    const headers     = { Authorization: `Bearer ${accessToken}` };
+
     switch (action) {
+      // --- getInfo ---
       case 'getInfo': {
         const urls = [
           'https://api.freeagent.com/v2/company',
@@ -167,63 +190,144 @@ functions.http('FreeAgent', async (req, res) => {
           'https://api.freeagent.com/v2/bank_accounts',
           'https://api.freeagent.com/v2/projects?view=active',
         ];
-        const [company, me, categories, bank_accounts, active_projects] = await Promise.all(
-          urls.map(u => fetch(u, { headers }).then(r => r.json()))
-        );
+        const [company, me, categories, bank_accounts, active_projects] =
+          await Promise.all(urls.map(u => fetch(u, { headers }).then(r => r.json())));
+
         return res.status(200).json({
-          success: true,
-          message: 'Fetched FreeAgent info successfully',
+          success:   true,
+          message:   'Fetched FreeAgent info successfully',
           timestamp: new Date().toISOString(),
           data: { company, me, categories, bank_accounts, active_projects },
         });
       }
+
+      // --- getTransactions ---
       case 'getTransactions': {
         const account = bank_account || bankAccount;
         if (!account) {
           return res.status(400).json({
-            success: false,
-            message: "Missing 'bank_account' in request body.",
+            success:   false,
+            message:   "Missing 'bank_account' in request body.",
             timestamp: new Date().toISOString(),
           });
         }
         try {
-          const url = `https://api.freeagent.com/v2/bank_transactions?bank_account=${encodeURIComponent(account)}&per_page=100`;
+          const url      = `https://api.freeagent.com/v2/bank_transactions?bank_account=${encodeURIComponent(account)}&per_page=100`;
           const response = await fetch(url, { headers });
           if (!response.ok) {
             const errorText = await response.text();
             return res.status(response.status).json({
-              success: false,
-              message: `FreeAgent API error: ${errorText}`,
+              success:   false,
+              message:   `FreeAgent API error: ${errorText}`,
               timestamp: new Date().toISOString(),
             });
           }
           const data = await response.json();
           return res.status(200).json({
-            success: true,
-            message: 'Fetched transactions successfully',
+            success:   true,
+            message:   'Fetched transactions successfully',
             timestamp: new Date().toISOString(),
             data,
           });
         } catch (err) {
           console.error('getTransactions error:', err);
           return res.status(500).json({
-            success: false,
-            message: 'Internal error while fetching transactions.',
+            success:   false,
+            message:   'Internal error while fetching transactions.',
             timestamp: new Date().toISOString(),
           });
         }
       }
+
+      // --- attachReceipt ---
+      case 'attachReceipt': {
+        // 1) Required fields
+        if (!bankTransactionUrl || !attachment) {
+          return res.status(400).json({
+            success:   false,
+            message:   "Missing required fields: bankTransactionUrl or attachment",
+            timestamp: new Date().toISOString(),
+          });
+        }
+
+        try {
+          // 2) Delete existing explanation if given
+          if (explanationUrl) {
+            const del = await fetch(explanationUrl, { method: 'DELETE', headers });
+            if (!del.ok) {
+              console.warn('Warning: failed to delete existing explanation:', await del.text());
+            }
+          }
+
+          // 3) Fetch the file and base64-encode it
+          const fileResp = await fetch(attachment);
+          if (!fileResp.ok) {
+            throw new Error(`Failed to fetch attachment at ${attachment}`);
+          }
+          const arrayBuf   = await fileResp.arrayBuffer();
+          const base64Data = Buffer.from(arrayBuf).toString('base64');
+
+          // 4) Create a new bank_transaction_explanation
+          const createResp = await fetch(
+            'https://api.freeagent.com/v2/bank_transaction_explanations',
+            {
+              method: 'POST',
+              headers: { ...headers, 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                bank_transaction_explanation: {
+                  bank_transaction:    bankTransactionUrl,
+                  explanation_amount:  gross_value,
+                  dated_on:            dated_on,
+                  description:         description,
+                  attachment:          base64Data
+                }
+              }),
+            }
+          );
+
+          if (!createResp.ok) {
+            const errText = await createResp.text();
+            return res.status(createResp.status).json({
+              success:   false,
+              message:   `FreeAgent API error: ${errText}`,
+              timestamp: new Date().toISOString(),
+            });
+          }
+
+          // 5) Success response envelope
+          return res.status(200).json({
+            info: {
+              success:   true,
+              timestamp: new Date().toISOString(),
+              message:   'Receipt attached to FreeAgent transaction'
+            },
+            payload: {}
+          });
+
+        } catch (err) {
+          console.error('attachReceipt error:', err);
+          return res.status(500).json({
+            success:   false,
+            message:   'Internal error in attachReceipt: ' + err.message,
+            timestamp: new Date().toISOString(),
+          });
+        }
+      }
+
+      // --- unsupported action ---
       default:
-        return res.status(400).json({ success: false, message: `Unsupported action '${action}'`, timestamp: new Date().toISOString() });
+        return res.status(400).json({
+          success:   false,
+          message:   `Unsupported action '${action}'`,
+          timestamp: new Date().toISOString(),
+        });
     }
   } catch (err) {
     console.error('FreeAgent handler error:', err.message);
     return res.status(500).json({
-      success: false,
-      message: 'Unexpected error.',
+      success:   false,
+      message:   'Unexpected error.',
       timestamp: new Date().toISOString(),
     });
   }
 });
-
-//adding as a test
