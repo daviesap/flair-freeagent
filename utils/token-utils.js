@@ -67,10 +67,11 @@ async function refreshTokenIfNeeded(userId) {
   };
   await db.collection('users').doc(userId).set(updated, { merge: true });
 
-  // 6) Return the fresh access_token
+  // 6) write a log message then Return the fresh access_token
+  await writeLog('INFO', `Refreshed token for user ${userId}`, { userId });
   return updated.access_token;
   
-  await writeLog('INFO', `Refreshed token for user ${userId}`, { userId });
+  
   
 }
 
