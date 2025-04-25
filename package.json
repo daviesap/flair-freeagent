@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "start": "functions-framework --target=authCallback",
-    "deploy": "gcloud functions deploy FreeAgent --runtime=nodejs20 --trigger-http --region=europe-west2 --allow-unauthenticated --source=."
+    "deploy": "gcloud functions deploy FreeAgent --runtime=nodejs20 --trigger-http --region=europe-west2 --allow-unauthenticated --source=. && gcloud functions deploy adminDashboard --runtime nodejs20 --trigger-http --region europe-west2 --allow-unauthenticated --entry-point=adminDashboard"
   },
   "engines": {
     "node": "20"
