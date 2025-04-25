@@ -1,8 +1,8 @@
 // freeagent.js - main HTTP handler for FreeAgent API operations
 
 const fetch = require('node-fetch');
-const { getSecret } = require('./secrets');
-const { refreshTokenIfNeeded } = require('./token-utils');
+const { getSecret } = require('../utils/secrets');
+const { refreshTokenIfNeeded } = require('../utils/token-utils');
 
 /**
  * HTTP Cloud Function to handle various FreeAgent actions

@@ -1,7 +1,7 @@
 // auth.js
 // Handles the OAuth callback from FreeAgent and stores tokens in Firestore
 
-const { getSecret } = require('./secrets');
+const { getSecret } = require('../utils/secrets');
 const { Firestore } = require('@google-cloud/firestore');
 const fetch         = require('node-fetch');
 
