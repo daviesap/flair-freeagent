@@ -2,7 +2,7 @@
 
 const { Firestore } = require('@google-cloud/firestore');
 const fetch         = require('node-fetch');
-const { getSecret } = require('./utils/secrets');
+const { getSecret } = require('./secrets');
 
 const db = new Firestore();
 
