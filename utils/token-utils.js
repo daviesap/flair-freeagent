@@ -4,7 +4,19 @@ const { Firestore } = require('@google-cloud/firestore');
 const fetch         = require('node-fetch');
 const { getSecret } = require('./secrets');
 
+
+const { Logging } = require('@google-cloud/logging');
+const logging = new Logging();
+const log = logging.log('token-refresh-log');  // You can name the log whatever you want
+
 const db = new Firestore();
+
+
+async function writeLog(severity, message, data = {}) {
+  const metadata = { severity };
+  const entry = log.entry(metadata, { message, ...data });
+  await log.write(entry);
+}
 
 /**
  * Checks a user’s stored token in Firestore and refreshes it if it’s
@@ -57,6 +69,9 @@ async function refreshTokenIfNeeded(userId) {
 
   // 6) Return the fresh access_token
   return updated.access_token;
+  
+  await writeLog('INFO', `Refreshed token for user ${userId}`, { userId });
+  
 }
 
 module.exports = { refreshTokenIfNeeded };
