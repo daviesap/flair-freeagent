@@ -1,19 +1,17 @@
 {
-  "name": "flair-auth",
+  "name": "flair-freeagent",
   "version": "1.0.0",
-  "description": "FreeAgent OAuth handler with Firestore and Secret Manager",
   "main": "index.js",
   "scripts": {
-    "start": "functions-framework --target=authCallback",
-    "deploy": "gcloud functions deploy authCallback --runtime nodejs20 --trigger-http --allow-unauthenticated --region=europe-west2 --entry-point=authCallback --source=. && gcloud functions deploy adminDashboard --runtime nodejs20 --trigger-http --region=europe-west2 --entry-point=adminDashboard --source=. && gcloud functions deploy FreeAgent --runtime nodejs20 --trigger-http --allow-unauthenticated --region=europe-west2 --entry-point=freeAgentHandler --source=."
-  },
-  "engines": {
-    "node": "20"
+    "start": "functions-framework",
+    "deploy:auth":      "gcloud functions deploy authCallback     --runtime nodejs20 --trigger-http --region=europe-west2 --allow-unauthenticated --entry-point authCallback",
+    "deploy:dashboard":"gcloud functions deploy adminDashboard --runtime nodejs20 --trigger-http --region=europe-west2 --allow-unauthenticated --entry-point adminDashboard",
+    "deploy:freeagent":"gcloud functions deploy FreeAgent        --runtime nodejs20 --trigger-http --region=europe-west2 --allow-unauthenticated --entry-point FreeAgent"
   },
   "dependencies": {
-    "@google-cloud/firestore": "^7.10.0",
     "@google-cloud/functions-framework": "^3.5.1",
-    "@google-cloud/secret-manager": "^4.2.0",
-    "node-fetch": "^2.6.7"
+    "@google-cloud/secret-manager":       "^4.2.0",
+    "@google-cloud/firestore":           "^7.10.0",
+    "node-fetch":                        "^2.6.7"
   }
 }
