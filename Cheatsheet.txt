@@ -65,3 +65,7 @@ Pro-tips
 In ~/.zshrc:
 
 alias deployFA="gcloud functions deploy FreeAgent --runtime=nodejs20 --trigger-http --region=europe-west2 --allow-unauthenticated --source=."
+
+
+
+Sausages
