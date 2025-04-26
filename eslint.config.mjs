@@ -4,14 +4,21 @@ import { defineConfig } from "eslint/config";
 
 export default defineConfig([
   { 
-    files: ["**/*.{js,mjs,cjs}"], 
-    plugins: { js }, 
-    extends: ["js/recommended"], 
-    languageOptions: { 
+    files: ["**/*.mjs"], // ⬅️ NEW BLOCK for .mjs files
+    languageOptions: {
+      sourceType: "module",
+      ecmaVersion: "latest",
+    }
+  },
+  { 
+    files: ["**/*.{js,cjs}"], // ⬅️ Your normal code
+    plugins: { js },
+    extends: ["js/recommended"],
+    languageOptions: {
       sourceType: "commonjs",
       ecmaVersion: "latest",
       globals: {
-        ...globals.node,   // 👈 ADD this (Node.js globals like Buffer, process, etc)
+        ...globals.node,
       },
     },
   }
