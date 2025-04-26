@@ -3,7 +3,6 @@
 
 // === IMPORTS ===
 const { Firestore } = require('@google-cloud/firestore');
-//const functions     = require('@google-cloud/functions-framework');
 
 // Initialize Firestore client
 const db = new Firestore();

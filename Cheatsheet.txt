@@ -68,4 +68,5 @@ alias deployFA="gcloud functions deploy FreeAgent --runtime=nodejs20 --trigger-h
 
 
 
-Sausages
+Pre deploy using eslint
+  npm run predeploy:freeagent
