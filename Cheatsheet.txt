@@ -29,7 +29,8 @@ gcloud functions deploy FreeAgent \
   --trigger-http \
   --region=europe-west2 \
   --allow-unauthenticated \
-  --source=.
+  --source=. \
+  --entry-point=myFunction
 
 # Or, to only update authCallback:
 gcloud functions deploy authCallback \

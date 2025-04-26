@@ -3,6 +3,7 @@ options:
 
 steps:
   - name: 'gcr.io/cloud-builders/gcloud'
+    id: Deploy authCallback
     entrypoint: 'bash'
     args:
       - '-c'
@@ -14,8 +15,15 @@ steps:
           --allow-unauthenticated \
           --entry-point=authCallback \
           --source=. \
+          --gen2 \
           --service-account=flair-december-2024@appspot.gserviceaccount.com
 
+  - name: 'gcr.io/cloud-builders/gcloud'
+    id: Deploy adminDashboard
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
         gcloud functions deploy adminDashboard \
           --runtime=nodejs20 \
           --trigger-http \
@@ -23,8 +31,15 @@ steps:
           --allow-unauthenticated \
           --entry-point=adminDashboard \
           --source=. \
+          --gen2 \
           --service-account=flair-december-2024@appspot.gserviceaccount.com
 
+  - name: 'gcr.io/cloud-builders/gcloud'
+    id: Deploy FreeAgent
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
         gcloud functions deploy FreeAgent \
           --runtime=nodejs20 \
           --trigger-http \
@@ -32,4 +47,5 @@ steps:
           --allow-unauthenticated \
           --entry-point=FreeAgent \
           --source=. \
+          --gen2 \
           --service-account=flair-december-2024@appspot.gserviceaccount.com
