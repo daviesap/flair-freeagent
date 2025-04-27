@@ -6,19 +6,26 @@
 # For more information, run:
 #   $ gcloud topic gcloudignore
 #
+
+# Ignore this file itself
 .gcloudignore
-# If you would like to upload your .git directory, .gitignore file or files
-# from your .gitignore file, remove the corresponding line
-# below:
+
+# Git-related files
 .git
 .gitignore
 
-node_modules
-#!include:.gitignore
+# Node modules and related
 node_modules/
-.DS_Store
-.git
-.gitignore
 npm-debug.log
-readme
+
+# MacOS system files
+.DS_Store
+
+# Environment variables
 .env
+
+# Readme (optional – you can remove this if you want the readme uploaded)
+readme
+
+# Also ignore everything specified in .gitignore
+#!include:.gitignore
