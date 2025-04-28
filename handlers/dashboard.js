@@ -1,10 +1,15 @@
-// dashboard.js - fully cleaned and polished Flair Admin Dashboard
+/**
+ * @file dashboard.js
+ * @description HTTP Cloud Function to render the Flair Admin Dashboard, including:
+ *   - Stored user tokens and their expiry
+ *   - Google Cloud Function deploy times and last accessed times
+ */
 
+// Initialize Firestore client
 const { logAccessTime } = require('../utils/logAccessTime'); 
 const { Firestore } = require('@google-cloud/firestore');
 const { GoogleAuth } = require('google-auth-library');
 
-// Initialize Firestore client
 const db = new Firestore();
 
 /**
@@ -27,18 +32,19 @@ async function fetchFunctionDeployTimes() {
   const deployTimes = {};
   const lastAccessedTimes = {}; // To store last accessed times from Firestore
 
-  for (const func of functions) {
-    const nameParts = func.name.split('/');
-    const functionName = nameParts[nameParts.length - 1];
+  // Batch fetch all metadata documents for performance
+  const metadataSnapshot = await db.collection('metadata').get();
+  const metadataMap = metadataSnapshot.docs.reduce((acc, doc) => {
+    acc[doc.id] = doc.data().last_accessed_at || null;
+    return acc;
+  }, {});
 
-    // Get deploy time from the API
-    deployTimes[functionName] = func.updateTime || 'Unknown';
-
-    // Fetch last accessed time from Firestore
-    const metadataSnapshot = await db.collection('metadata').doc(functionName).get();
-    const lastAccessed = metadataSnapshot.exists ? metadataSnapshot.data().last_accessed_at : 'Never';
-    lastAccessedTimes[functionName] = lastAccessed;
-  }
+  // Populate deployTimes and lastAccessedTimes
+  functions.forEach(func => {
+    const functionName = func.name.split('/').pop();
+    deployTimes[functionName] = func.updateTime || null;
+    lastAccessedTimes[functionName] = metadataMap[functionName] || null;
+  });
 
   // Sort the deploy times and last accessed times
   const sortedDeployTimes = Object.keys(deployTimes)
@@ -55,10 +61,14 @@ async function fetchFunctionDeployTimes() {
 }
 
 /**
- * Helper to format both deploy times and last access times nicely
+ * Format an ISO date string into human-readable form in Europe/London timezone.
+ * Returns 'Unknown' for null/undefined, and preserves 'Never'.
+ * @param {string|null} isoString
+ * @returns {string}
  */
 function formatDateTime(isoString) {
-  if (!isoString) return 'Unknown';
+  if (isoString === null || isoString === undefined) return 'Unknown';
+  if (isoString === 'Never') return 'Never';
   try {
     const options = {
       day: 'numeric',
@@ -77,7 +87,10 @@ function formatDateTime(isoString) {
 }
 
 /**
- * Helper to format token expiry times nicely
+ * Format a timestamp or date string into a relative expiry string
+ * (e.g., 'in 5 min', 'Expired').
+ * @param {string|Date|null} expiresAt
+ * @returns {string}
  */
 function formatExpiry(expiresAt) {
   if (!expiresAt) return 'Unknown';
@@ -96,9 +109,7 @@ function formatExpiry(expiresAt) {
   return `in ${Math.round(diffDays)} days`;
 }
 
-/**
- * HTTP Cloud Function to render the admin dashboard
- */
+// HTTP Cloud Function to render the admin dashboard
 async function adminDashboard(req, res) {
   // Log access time for adminDashboard
   await logAccessTime('adminDashboard');
@@ -109,7 +120,16 @@ async function adminDashboard(req, res) {
       tokens[doc.id] = doc.data();
     });
 
-    const deployTimesAndLastAccessed = await fetchFunctionDeployTimes(); // Fetch both deploy times and last accessed times
+    const deployTimesAndLastAccessed = await fetchFunctionDeployTimes();
+
+    // Build table rows for function metadata
+    const functionTableRows = Object.entries(deployTimesAndLastAccessed).map(([funcName, data]) => `
+      <tr>
+        <td>${funcName}</td>
+        <td>${formatDateTime(data.deployTime)}</td>
+        <td>${formatDateTime(data.lastAccessedTime)}</td>
+      </tr>
+    `).join('');
 
     const revision = process.env.K_REVISION || 'unknown';
 
@@ -136,16 +156,9 @@ async function adminDashboard(req, res) {
       `;
     }
 
-    // Build deploy times and last accessed times lists
-    const deployTimeList = Object.entries(deployTimesAndLastAccessed).map(([funcName, data]) => `
-      <li><strong>${funcName} Deploy Time:</strong> ${formatDateTime(data.deployTime)}</li>
-      <li><strong>${funcName} Last Accessed:</strong> ${formatDateTime(data.lastAccessedTime)}</li>
-    `).join('');
-
     res.status(200).send(
       `<!DOCTYPE html>
       <html lang="en">
-      <img src="https://storage.googleapis.com/admin-dashboard-assets/flair-logo.png" alt="Flair Logo" style="height: 60px; margin-bottom: 20px;">
       <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -159,6 +172,8 @@ async function adminDashboard(req, res) {
         </style>
       </head>
       <body>
+        <!-- Dashboard logo -->
+        <img src="https://storage.googleapis.com/admin-dashboard-assets/flair-logo.png" alt="Flair Logo" style="height: 60px; margin-bottom: 20px;">
         <h1>Flair Admin Dashboard</h1>
 
         <h2>Service Info</h2>
@@ -167,9 +182,18 @@ async function adminDashboard(req, res) {
         </ul>
 
         <h2>Deploy Times and Last Accessed Times</h2>
-        <ul>
-          ${deployTimeList}
-        </ul>
+        <table>
+          <thead>
+            <tr>
+              <th>Function Name</th>
+              <th>Deploy Time</th>
+              <th>Last Accessed Time</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${functionTableRows}
+          </tbody>
+        </table>
 
         <h2>Stored User Tokens</h2>
         <table>
