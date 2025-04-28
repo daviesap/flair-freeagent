@@ -61,9 +61,10 @@ async function refreshTokenIfNeeded(userId) {
   const nt = await resp.json();
   const updated = {
     access_token:  nt.access_token,
-    refresh_token: nt.refresh_token || refresh_token,
+    refresh_token: nt.refresh_token || refresh_token, // keep old if none provided
     expires_in:    nt.expires_in,
     timestamp:     new Date().toISOString(),
+    expires_at:    new Date(Date.now() + nt.expires_in * 1000).toISOString(), // <-- NEW FIELD
   };
   await db.collection('users').doc(userId).set(updated, { merge: true });
 

@@ -21,10 +21,9 @@ async function fetchFunctionDeployTimes() {
   });
 
   const client = await auth.getClient();
-  const projectId = await auth.getProjectId();
   const region = 'europe-west2'; // Adjust if needed
 
-  const url = `https://cloudfunctions.googleapis.com/v2/projects/${projectId}/locations/${region}/functions`;
+  const url = `https://cloudfunctions.googleapis.com/v2/projects/${process.env.GOOGLE_CLOUD_PROJECT}/locations/${region}/functions`;
 
   const res = await client.request({ url });
   const functions = res.data.functions || [];
@@ -127,7 +126,6 @@ async function adminDashboard(req, res) {
       <tr>
         <td>${funcName}</td>
         <td>${formatDateTime(data.deployTime)}</td>
-        <td>${formatDateTime(data.lastAccessedTime)}</td>
       </tr>
     `).join('');
 
@@ -181,13 +179,12 @@ async function adminDashboard(req, res) {
           <li><strong>Revision:</strong> ${revision}</li>
         </ul>
 
-        <h2>Deploy Times and Last Accessed Times</h2>
+        <h2>Deploy Times</h2>
         <table>
           <thead>
             <tr>
               <th>Function Name</th>
               <th>Deploy Time</th>
-              <th>Last Accessed Time</th>
             </tr>
           </thead>
           <tbody>

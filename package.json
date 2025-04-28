@@ -7,7 +7,7 @@
     "predeploy:freeagent": "npm run lint && npm ls",
     "deploy:auth": "gcloud functions deploy authCallback     --runtime nodejs20 --trigger-http --region=europe-west2 --allow-unauthenticated --entry-point authCallback --set-env-vars=GCP_PROJECT=flair-freeagent",
     "deploy:dashboard": "gcloud functions deploy adminDashboard --runtime nodejs20 --trigger-http --region=europe-west2 --entry-point=adminDashboard",
-    "deploy:freeagent": "npm run predeploy:freeagent && gcloud functions deploy FreeAgent --runtime=nodejs20 --trigger-http --region=europe-west2 --allow-unauthenticated --source=. --entry-point=FreeAgent --gen2"
+    "deploy:freeagent": "npm run predeploy:freeagent && gcloud functions deploy FreeAgent --runtime=nodejs20 --trigger-http --region=europe-west2 --allow-unauthenticated --source=. --entry-point=FreeAgent --gen2 --set-env-vars=GCP_PROJECT=flair-freeagent"
   },
   "dependencies": {
     "@google-cloud/firestore": "^7.10.0",
