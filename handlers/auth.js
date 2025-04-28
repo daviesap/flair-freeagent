@@ -22,7 +22,7 @@ async function authCallback(req, res) {
     // Exchange code for tokens
     const clientId     = await getSecret('freeagent-client-id');
     const clientSecret = await getSecret('freeagent-client-secret');
-    const redirectUri  = 'https://europe-west2-flair-december-2024.cloudfunctions.net/authCallback';
+    const redirectUri  = 'https://europe-west2-flair-freeagent.cloudfunctions.net/authCallback';
 
     const tokenResp = await fetch(
       'https://api.freeagent.com/v2/token_endpoint',
