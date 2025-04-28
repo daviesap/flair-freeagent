@@ -70,3 +70,7 @@ alias deployFA="gcloud functions deploy FreeAgent --runtime=nodejs20 --trigger-h
 
 Pre deploy using eslint
   npm run predeploy:freeagent
+
+
+Get enpoint url
+gcloud functions describe adminDashboard --region=europe-west2 --format="yaml(serviceConfig.uri, serviceConfig.serviceUri)"

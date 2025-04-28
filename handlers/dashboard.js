@@ -1,49 +1,180 @@
+// dashboard.js - fully cleaned and polished Flair Admin Dashboard
 
-// dashboard.js - serves a simple admin dashboard displaying tokens and expiry times
-
-// === IMPORTS ===
 const { Firestore } = require('@google-cloud/firestore');
+const { GoogleAuth } = require('google-auth-library');
+const fetch = require('node-fetch');
 
 // Initialize Firestore client
 const db = new Firestore();
 
 /**
- * HTTP Cloud Function to render an admin dashboard of stored OAuth tokens
+ * Helper to fetch deploy times of all HTTP-triggered functions
+ */
+async function fetchFunctionDeployTimes() {
+  const auth = new GoogleAuth({
+    scopes: 'https://www.googleapis.com/auth/cloud-platform',
+  });
+
+  const client = await auth.getClient();
+  const projectId = await auth.getProjectId();
+  const region = 'europe-west2'; // Adjust if needed
+
+  const url = `https://cloudfunctions.googleapis.com/v2/projects/${projectId}/locations/${region}/functions`;
+
+  const res = await client.request({ url });
+  const functions = res.data.functions || [];
+
+  const deployTimes = {};
+
+  for (const func of functions) {
+    const nameParts = func.name.split('/');
+    const functionName = nameParts[nameParts.length - 1];
+
+    if (!func.eventTrigger) {
+      deployTimes[functionName] = func.updateTime || 'Unknown';
+    }
+  }
+
+  const sortedDeployTimes = Object.keys(deployTimes)
+    .sort()
+    .reduce((obj, key) => {
+      obj[key] = deployTimes[key];
+      return obj;
+    }, {});
+
+  return sortedDeployTimes;
+}
+
+/**
+ * Helper to format token expiry times nicely
+ */
+function formatExpiry(expiresAt) {
+  if (!expiresAt) return 'Unknown';
+  const expiryDate = new Date(expiresAt);
+  if (isNaN(expiryDate)) return 'Invalid date';
+
+  const now = new Date();
+  const diffMs = expiryDate - now;
+  const diffMinutes = diffMs / (1000 * 60);
+  const diffHours = diffMinutes / 60;
+  const diffDays = diffHours / 24;
+
+  if (diffMinutes <= 0) return 'Expired';
+  if (diffMinutes < 60) return `in ${Math.round(diffMinutes)} min`;
+  if (diffHours < 24) return `in ${Math.round(diffHours)} hours`;
+  return `in ${Math.round(diffDays)} days`;
+}
+
+/**
+ * Helper to format deploy times nicely
+ */
+function formatDeployTime(isoString) {
+  if (!isoString) return 'Unknown';
+  try {
+    const options = {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+      timeZone: 'Europe/London' // Set to your preferred timezone
+    };
+    const date = new Date(isoString);
+    return date.toLocaleString('en-GB', options).replace(',', ' at');
+  } catch {
+    return 'Invalid date';
+  }
+}
+
+/**
+ * HTTP Cloud Function to render the admin dashboard
  */
 async function adminDashboard(req, res) {
   try {
-    // Fetch all user docs
     const snapshot = await db.collection('users').get();
     const tokens = {};
     snapshot.forEach(doc => {
       tokens[doc.id] = doc.data();
     });
 
-    // Send minimal HTML page
+    const deployTimes = await fetchFunctionDeployTimes();
+
+
+    const revision = process.env.K_REVISION || 'unknown';
+  
+
+    const tableHeader = `
+      <tr>
+        <th>User ID</th>
+        <th>Access Token</th>
+        <th>Expires At</th>
+      </tr>
+    `;
+
+    let tableRows = '';
+    for (const [userId, tokenData] of Object.entries(tokens)) {
+      const accessToken = tokenData.access_token || 'N/A';
+      const expiresAt = tokenData.expires_at || '';
+      const nicelyFormattedExpiry = formatExpiry(expiresAt);
+
+      tableRows += `
+        <tr>
+          <td>${userId}</td>
+          <td style="word-break: break-all;">${accessToken}</td>
+          <td>${nicelyFormattedExpiry}</td>
+        </tr>
+      `;
+    }
+
     res.status(200).send(
       `<!DOCTYPE html>
       <html lang="en">
+      <img src="https://storage.googleapis.com/admin-dashboard-assets/flair-logo.png" alt="Flair Logo" style="height: 60px; margin-bottom: 20px;">
       <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>Flair Admin Dashboard</title>
         <style>
           body { font-family: Arial, sans-serif; padding: 20px; }
-          pre { background: #f4f4f4; padding: 10px; border-radius: 4px; }
+          table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+          th, td { border: 1px solid #ccc; padding: 8px; text-align: left; vertical-align: top; }
+          th { background-color: #eee; }
+          td { word-break: break-word; }
         </style>
       </head>
       <body>
         <h1>Flair Admin Dashboard</h1>
-        <p>Stored user tokens and metadata:</p>
-        <pre>${JSON.stringify(tokens, null, 2)}</pre>
+
+        <h2>Service Info</h2>
+        <ul>
+          <li><strong>Revision:</strong> ${revision}</li>
+        </ul>
+
+        <h2>Deploy Times</h2>
+        <ul>
+          ${Object.entries(deployTimes).map(([funcName, time]) => `
+            <li><strong>${funcName}:</strong> ${formatDeployTime(time)}</li>
+          `).join('')}
+        </ul>
+        <p>(That) London time</p>
+
+        <h2>Stored User Tokens</h2>
+        <table>
+          <thead>
+            ${tableHeader}
+          </thead>
+          <tbody>
+            ${tableRows}
+          </tbody>
+        </table>
       </body>
       </html>`
     );
   } catch (err) {
     console.error('Dashboard error:', err);
-    res.status(500).send('Failed to fetch token data.');
+    res.status(500).send('Failed to fetch dashboard data.');
   }
 }
 
-// Export the handler so index.js can wire it up
 module.exports = { adminDashboard };
