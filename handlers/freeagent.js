@@ -1,5 +1,6 @@
 // freeagent.js - main HTTP handler for FreeAgent API operations
 
+const { logAccessTime } = require('../utils/logAccessTime'); 
 const fetch = require('node-fetch');
 const { getSecret } = require('../utils/secrets');
 const { refreshTokenIfNeeded } = require('../utils/token-utils');
@@ -8,6 +9,8 @@ const { refreshTokenIfNeeded } = require('../utils/token-utils');
  * HTTP Cloud Function to handle various FreeAgent actions
  */
 async function freeAgentHandler(req, res) {
+  // Log access time for freeagent script
+  await logAccessTime('freeagent');
   if (req.method !== 'POST') {
     return res.status(405).json({ success: false, message: 'Only POST supported.' });
   }

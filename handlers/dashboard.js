@@ -1,14 +1,14 @@
 // dashboard.js - fully cleaned and polished Flair Admin Dashboard
 
+const { logAccessTime } = require('../utils/logAccessTime'); 
 const { Firestore } = require('@google-cloud/firestore');
 const { GoogleAuth } = require('google-auth-library');
-const fetch = require('node-fetch');
 
 // Initialize Firestore client
 const db = new Firestore();
 
 /**
- * Helper to fetch deploy times of all HTTP-triggered functions
+ * Helper to fetch deploy times and last accessed times of all HTTP-triggered functions
  */
 async function fetchFunctionDeployTimes() {
   const auth = new GoogleAuth({
@@ -25,24 +25,55 @@ async function fetchFunctionDeployTimes() {
   const functions = res.data.functions || [];
 
   const deployTimes = {};
+  const lastAccessedTimes = {}; // To store last accessed times from Firestore
 
   for (const func of functions) {
     const nameParts = func.name.split('/');
     const functionName = nameParts[nameParts.length - 1];
 
-    if (!func.eventTrigger) {
-      deployTimes[functionName] = func.updateTime || 'Unknown';
-    }
+    // Get deploy time from the API
+    deployTimes[functionName] = func.updateTime || 'Unknown';
+
+    // Fetch last accessed time from Firestore
+    const metadataSnapshot = await db.collection('metadata').doc(functionName).get();
+    const lastAccessed = metadataSnapshot.exists ? metadataSnapshot.data().last_accessed_at : 'Never';
+    lastAccessedTimes[functionName] = lastAccessed;
   }
 
+  // Sort the deploy times and last accessed times
   const sortedDeployTimes = Object.keys(deployTimes)
     .sort()
     .reduce((obj, key) => {
-      obj[key] = deployTimes[key];
+      obj[key] = {
+        deployTime: deployTimes[key],
+        lastAccessedTime: lastAccessedTimes[key], // Include last accessed time
+      };
       return obj;
     }, {});
 
   return sortedDeployTimes;
+}
+
+/**
+ * Helper to format both deploy times and last access times nicely
+ */
+function formatDateTime(isoString) {
+  if (!isoString) return 'Unknown';
+  try {
+    const options = {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+      timeZone: 'Europe/London' // Adjust to your preferred timezone
+    };
+    const date = new Date(isoString);
+    return date.toLocaleString('en-GB', options).replace(',', ' at');
+  } catch {
+    return 'Invalid date';
+  }
 }
 
 /**
@@ -66,31 +97,11 @@ function formatExpiry(expiresAt) {
 }
 
 /**
- * Helper to format deploy times nicely
- */
-function formatDeployTime(isoString) {
-  if (!isoString) return 'Unknown';
-  try {
-    const options = {
-      day: 'numeric',
-      month: 'long',
-      year: 'numeric',
-      hour: 'numeric',
-      minute: '2-digit',
-      hour12: true,
-      timeZone: 'Europe/London' // Set to your preferred timezone
-    };
-    const date = new Date(isoString);
-    return date.toLocaleString('en-GB', options).replace(',', ' at');
-  } catch {
-    return 'Invalid date';
-  }
-}
-
-/**
  * HTTP Cloud Function to render the admin dashboard
  */
 async function adminDashboard(req, res) {
+  // Log access time for adminDashboard
+  await logAccessTime('adminDashboard');
   try {
     const snapshot = await db.collection('users').get();
     const tokens = {};
@@ -98,11 +109,9 @@ async function adminDashboard(req, res) {
       tokens[doc.id] = doc.data();
     });
 
-    const deployTimes = await fetchFunctionDeployTimes();
-
+    const deployTimesAndLastAccessed = await fetchFunctionDeployTimes(); // Fetch both deploy times and last accessed times
 
     const revision = process.env.K_REVISION || 'unknown';
-  
 
     const tableHeader = `
       <tr>
@@ -126,6 +135,12 @@ async function adminDashboard(req, res) {
         </tr>
       `;
     }
+
+    // Build deploy times and last accessed times lists
+    const deployTimeList = Object.entries(deployTimesAndLastAccessed).map(([funcName, data]) => `
+      <li><strong>${funcName} Deploy Time:</strong> ${formatDateTime(data.deployTime)}</li>
+      <li><strong>${funcName} Last Accessed:</strong> ${formatDateTime(data.lastAccessedTime)}</li>
+    `).join('');
 
     res.status(200).send(
       `<!DOCTYPE html>
@@ -151,13 +166,10 @@ async function adminDashboard(req, res) {
           <li><strong>Revision:</strong> ${revision}</li>
         </ul>
 
-        <h2>Deploy Times</h2>
+        <h2>Deploy Times and Last Accessed Times</h2>
         <ul>
-          ${Object.entries(deployTimes).map(([funcName, time]) => `
-            <li><strong>${funcName}:</strong> ${formatDeployTime(time)}</li>
-          `).join('')}
+          ${deployTimeList}
         </ul>
-        <p>(That) London time</p>
 
         <h2>Stored User Tokens</h2>
         <table>

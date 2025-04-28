@@ -1,6 +1,7 @@
 // auth.js
 // Handles the OAuth callback from FreeAgent and stores tokens in Firestore
 
+const { logAccessTime } = require('../utils/logAccessTime'); 
 const { getSecret } = require('../utils/secrets');
 const { Firestore } = require('@google-cloud/firestore');
 const fetch         = require('node-fetch');
@@ -13,6 +14,8 @@ const db = new Firestore();
  * Expects req.query.code and req.query.state.
  */
 async function authCallback(req, res) {
+  // Log access time for auth script
+  await logAccessTime('auth');
   const { code, state } = req.query;
   if (!code || !state) {
     return res.status(400).send("Missing 'code' or 'state' parameter.");
