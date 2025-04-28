@@ -1,5 +1,5 @@
 // utils/secrets.js
-const { SecretManagerServiceClient } = require('@google-cloud/secret-manager');
+import { SecretManagerServiceClient } from '@google-cloud/secret-manager';
 const client = new SecretManagerServiceClient();
 
 async function getSecret(name) {
@@ -9,4 +9,4 @@ async function getSecret(name) {
   return version.payload.data.toString('utf8').trim();
 }
 
-module.exports = { getSecret };
+export { getSecret };

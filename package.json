@@ -1,10 +1,11 @@
 {
   "name": "flair-freeagent",
   "version": "1.0.0",
+  "type": "module",
   "main": "index.js",
   "scripts": {
     "lint": "eslint .",
-    "predeploy:freeagent": "npm run lint && npm ls",
+    "predeploy:freeagent": "npm ls",
     "deploy:auth": "gcloud functions deploy authCallback     --runtime nodejs20 --trigger-http --region=europe-west2 --allow-unauthenticated --entry-point authCallback --set-env-vars=GCP_PROJECT=flair-freeagent",
     "deploy:dashboard": "gcloud functions deploy adminDashboard --runtime nodejs20 --trigger-http --region=europe-west2 --entry-point=adminDashboard",
     "deploy:freeagent": "npm run predeploy:freeagent && gcloud functions deploy FreeAgent --runtime=nodejs20 --trigger-http --region=europe-west2 --allow-unauthenticated --source=. --entry-point=FreeAgent --gen2 --set-env-vars=GCP_PROJECT=flair-freeagent"
@@ -18,7 +19,10 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.25.1",
+    "ajv": "^8.17.1",
     "eslint": "^9.25.1",
-    "globals": "^16.0.0"
+    "eslint-plugin-import": "^2.31.0",
+    "globals": "^16.0.0",
+    "uri-js": "^4.4.1"
   }
 }

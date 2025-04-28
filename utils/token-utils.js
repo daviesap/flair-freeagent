@@ -1,11 +1,10 @@
 // token-utils.js
 
-const { Firestore } = require('@google-cloud/firestore');
-const fetch         = require('node-fetch');
-const { getSecret } = require('./secrets');
+import { Firestore } from '@google-cloud/firestore';
+import fetch from 'node-fetch';
+import { getSecret } from './secrets.js';
+import { Logging } from '@google-cloud/logging';
 
-
-const { Logging } = require('@google-cloud/logging');
 const logging = new Logging();
 const log = logging.log('token-refresh-log');  // You can name the log whatever you want
 
@@ -76,4 +75,4 @@ async function refreshTokenIfNeeded(userId) {
   
 }
 
-module.exports = { refreshTokenIfNeeded };
+export { refreshTokenIfNeeded };

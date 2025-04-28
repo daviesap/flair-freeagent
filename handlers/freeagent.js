@@ -1,8 +1,8 @@
 // freeagent.js - main HTTP handler for FreeAgent API operations
 
-const fetch = require('node-fetch');
-const { getSecret } = require('../utils/secrets');
-const { refreshTokenIfNeeded } = require('../utils/token-utils');
+import fetch from 'node-fetch';
+import { getSecret } from '../utils/secrets.js';
+import { refreshTokenIfNeeded } from '../utils/token-utils.js';
 
 /**
  * HTTP Cloud Function to handle various FreeAgent actions
@@ -21,7 +21,7 @@ async function freeAgentHandler(req, res) {
   if (!action || !userId || !api_key) {
     return res.status(400).json({
       success: false,
-      message: "Missing required fields (action, userId, api_key).",
+      message: 'Missing required fields (action, userId, api_key).',
       timestamp: new Date().toISOString(),
     });
   }
@@ -67,7 +67,7 @@ async function freeAgentHandler(req, res) {
         if (!acct) {
           return res.status(400).json({
             success: false,
-            message: "Missing 'bank_account' in request body.",
+            message: 'Missing \'bank_account\' in request body.',
             timestamp: new Date().toISOString(),
           });
         }
@@ -94,7 +94,7 @@ async function freeAgentHandler(req, res) {
         if (!bankTransactionUrl || !(attachment || htmlBody) || !category) {
           return res.status(400).json({
             success: false,
-            message: "Missing required fields: bankTransactionUrl, (attachment or htmlBody), category",
+            message: 'Missing required fields: bankTransactionUrl, (attachment or htmlBody), category',
             timestamp: new Date().toISOString(),
           });
         }
@@ -182,4 +182,4 @@ async function freeAgentHandler(req, res) {
   }
 }
 
-module.exports = { freeAgentHandler };
+export { freeAgentHandler };

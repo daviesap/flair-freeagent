@@ -1,25 +1,27 @@
-import js from "@eslint/js";
-import globals from "globals";
-import { defineConfig } from "eslint/config";
+import js from '@eslint/js';
 
-export default defineConfig([
-  { 
-    files: ["**/*.mjs"], // ⬅️ NEW BLOCK for .mjs files
+export default [
+  js.configs.recommended,
+  {
     languageOptions: {
-      sourceType: "module",
-      ecmaVersion: "latest",
-    }
-  },
-  { 
-    files: ["**/*.{js,cjs}"], // ⬅️ Your normal code
-    plugins: { js },
-    extends: ["js/recommended"],
-    languageOptions: {
-      sourceType: "commonjs",
-      ecmaVersion: "latest",
+      ecmaVersion: 'latest',
+      sourceType: 'module',
       globals: {
-        ...globals.node,
+        require: 'readonly',
+        module: 'readonly',
+        process: 'readonly',
+        Buffer: 'readonly',
+        URL: 'readonly',
+        URLSearchParams: 'readonly',
+        console: 'readonly',
+        exports: 'readonly',
       },
     },
-  }
-]);
+    rules: {
+      'no-unused-vars': 'warn',
+      'no-undef': 'error',
+      'semi': ['error', 'always'],
+      'quotes': ['error', 'single'],
+    },
+  },
+];

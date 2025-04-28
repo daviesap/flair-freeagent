@@ -1,10 +1,9 @@
 // index.js
 
 process.env.GOOGLE_CLOUD_PROJECT = 'flair-freeagent';
-const { authCallback }     = require('./handlers/auth');
-const { adminDashboard }   = require('./handlers/dashboard');
-const { freeAgentHandler } = require('./handlers/freeagent');
 
-exports.authCallback = authCallback;
-exports.adminDashboard = adminDashboard;
-exports.FreeAgent = freeAgentHandler;;
+import { authCallback } from './handlers/auth.js';
+import { adminDashboard } from './handlers/dashboard.js';
+import { freeAgentHandler } from './handlers/freeagent.js';
+
+export { authCallback, adminDashboard, freeAgentHandler as FreeAgent };

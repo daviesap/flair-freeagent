@@ -2,18 +2,17 @@
  * @file dashboard.js
  * @description HTTP Cloud Function to render the Flair Admin Dashboard, including:
  *   - Stored user tokens and their expiry
- *   - Google Cloud Function deploy times and last accessed times
+ *   - Google Cloud Function deploy times
  */
 
 // Initialize Firestore client
-const { logAccessTime } = require('../utils/logAccessTime'); 
-const { Firestore } = require('@google-cloud/firestore');
-const { GoogleAuth } = require('google-auth-library');
+import { Firestore } from '@google-cloud/firestore';
+import { GoogleAuth } from 'google-auth-library';
 
 const db = new Firestore();
 
 /**
- * Helper to fetch deploy times and last accessed times of all HTTP-triggered functions
+ * Helper to fetch deploy times of all HTTP-triggered functions
  */
 async function fetchFunctionDeployTimes() {
   const auth = new GoogleAuth({
@@ -29,29 +28,19 @@ async function fetchFunctionDeployTimes() {
   const functions = res.data.functions || [];
 
   const deployTimes = {};
-  const lastAccessedTimes = {}; // To store last accessed times from Firestore
 
-  // Batch fetch all metadata documents for performance
-  const metadataSnapshot = await db.collection('metadata').get();
-  const metadataMap = metadataSnapshot.docs.reduce((acc, doc) => {
-    acc[doc.id] = doc.data().last_accessed_at || null;
-    return acc;
-  }, {});
-
-  // Populate deployTimes and lastAccessedTimes
+  // Populate deployTimes
   functions.forEach(func => {
     const functionName = func.name.split('/').pop();
     deployTimes[functionName] = func.updateTime || null;
-    lastAccessedTimes[functionName] = metadataMap[functionName] || null;
   });
 
-  // Sort the deploy times and last accessed times
+  // Sort the deploy times
   const sortedDeployTimes = Object.keys(deployTimes)
     .sort()
     .reduce((obj, key) => {
       obj[key] = {
-        deployTime: deployTimes[key],
-        lastAccessedTime: lastAccessedTimes[key], // Include last accessed time
+        deployTime: deployTimes[key]
       };
       return obj;
     }, {});
@@ -110,8 +99,7 @@ function formatExpiry(expiresAt) {
 
 // HTTP Cloud Function to render the admin dashboard
 async function adminDashboard(req, res) {
-  // Log access time for adminDashboard
-  await logAccessTime('adminDashboard');
+  
   try {
     const snapshot = await db.collection('users').get();
     const tokens = {};
@@ -119,10 +107,10 @@ async function adminDashboard(req, res) {
       tokens[doc.id] = doc.data();
     });
 
-    const deployTimesAndLastAccessed = await fetchFunctionDeployTimes();
+    const deployTimes = await fetchFunctionDeployTimes();
 
     // Build table rows for function metadata
-    const functionTableRows = Object.entries(deployTimesAndLastAccessed).map(([funcName, data]) => `
+    const functionTableRows = Object.entries(deployTimes).map(([funcName, data]) => `
       <tr>
         <td>${funcName}</td>
         <td>${formatDateTime(data.deployTime)}</td>
@@ -210,4 +198,4 @@ async function adminDashboard(req, res) {
   }
 }
 
-module.exports = { adminDashboard };
+export { adminDashboard };
