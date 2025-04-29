@@ -8,6 +8,7 @@
 // Initialize Firestore client
 import { Firestore } from '@google-cloud/firestore';
 import { GoogleAuth } from 'google-auth-library';
+import { writeLog } from '../utils/log.js';
 
 const db = new Firestore();
 
@@ -99,6 +100,13 @@ function formatExpiry(expiresAt) {
 
 // HTTP Cloud Function to render the admin dashboard
 async function adminDashboard(req, res) {
+
+  await writeLog({
+    logName: 'dashboard-log',
+    functionName: 'adminDashboard',
+    severity: 'INFO',
+    event: 'Serving dashboard'
+  });
   
   try {
     const snapshot = await db.collection('users').get();
@@ -193,7 +201,15 @@ async function adminDashboard(req, res) {
       </html>`
     );
   } catch (err) {
-    console.error('Dashboard error:', err);
+    await writeLog({
+      logName: 'dashboard-log',
+      functionName: 'adminDashboard',
+      severity: 'ERROR',
+      event: 'Failed to fetch dashboard data',
+      data: {
+        error: err
+      }
+    });
     res.status(500).send('Failed to fetch dashboard data.');
   }
 }

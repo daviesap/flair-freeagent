@@ -4,6 +4,7 @@
 import { getSecret } from '../utils/secrets.js';
 import { Firestore } from '@google-cloud/firestore';
 import fetch from 'node-fetch';
+import { writeLog } from '../utils/log.js';
 
 // Initialize Firestore client
 const db = new Firestore();
@@ -14,7 +15,23 @@ const db = new Firestore();
  */
 async function authCallback(req, res) {
   const { code, state } = req.query;
-  if (!code || !state) {
+
+    // --- Helper function to log errors ---
+    async function logTokenExchangeFailed(error) {
+      await writeLog({
+        logName: 'oauth-log',
+        severity: 'ERROR',
+        functionName: 'logTokenExchangeFailed',
+        event: 'Token Exchange Failed',
+        data: {
+          errorMessage: error?.message || error,   // use message if Error object, otherwise string
+          userId: state
+        }
+      });
+    }
+  
+  
+    if (!code || !state) {
     return res.status(400).send('Missing \'code\' or \'state\' parameter.');
   }
 
@@ -41,7 +58,7 @@ async function authCallback(req, res) {
 
     if (!tokenResp.ok) {
       const err = await tokenResp.text();
-      console.error('Token exchange failed:', err);
+      await logTokenExchangeFailed(err); // Log the error
       return res.status(500).send('Failed to exchange code for token.');
     }
 
@@ -73,6 +90,17 @@ async function authCallback(req, res) {
       }
     );
 
+    // Log the successful token exchange
+    await writeLog({
+      logName: 'oauth-log',
+      functionName: 'authCallback',
+      severity: 'INFO',
+      event: 'Token Exchange Successful',
+      data: {
+        userId: state
+      }
+    });
+
     // Redirect back to your app
     return res.status(200).send(`
       <html><body>
@@ -84,7 +112,7 @@ async function authCallback(req, res) {
     `);
 
   } catch (err) {
-    console.error('OAuth handler error:', err);
+    await logTokenExchangeFailed(err); // Log the error
     return res.status(500).send('Unexpected error during OAuth process.');
   }
 }

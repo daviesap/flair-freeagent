@@ -1,4 +1,6 @@
 import { Logging } from '@google-cloud/logging';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
 const logging = new Logging();
 
@@ -7,23 +9,36 @@ const logging = new Logging();
  *
  * @param {Object} options
  * @param {string} options.logName     - Custom log name (e.g. 'token-refresh-log').
- * @param {string} options.severity    - One of: 'DEFAULT', 'DEBUG', 'INFO', 'NOTICE', 'WARNING', 'ERROR', 'CRITICAL', 'ALERT', 'EMERGENCY'.
- * @param {string} options.event       - Short identifier for this log event (e.g. 'TokenRefreshed').
- * @param {string} [options.component] - Where this log originated (e.g. 'TokenHandler', 'FreeAgentAPI').
- * @param {string} [options.userId]    - Optional user ID (for filtering).
- * @param {string} [options.message]   - Human-readable message.
+ * @param {string} options.severity    - One of: 'DEFAULT', 'DEBUG', 'INFO', etc.
+ * @param {string} options.functionName    - The function that the log is from.
+ * @param {string} options.event       - Short identifier for this log event.
  * @param {object} [options.data={}]   - Extra structured data to include.
  */
 export async function writeLog({
   logName,
   severity,
+  functionName,
   event,
-  component,
-  userId,
-  message,
   data = {}
 }) {
   const log = logging.log(logName);
+
+  let file = 'unknown';
+  let line = null;
+
+  try {
+    const err = new Error();
+    const stackLines = err.stack?.split('\n');
+    if (stackLines && stackLines.length > 2) {
+      const match = stackLines[2].match(/\(([^)]+):(\d+):(\d+)\)/) || stackLines[2].match(/at ([^ ]+):(\d+):(\d+)/);
+      if (match) {
+        file = path.basename(match[1]);
+        line = parseInt(match[2], 10);
+      }
+    }
+  } catch (e) {
+    // fallback to unknown
+  }
 
   const metadata = {
     severity,
@@ -34,9 +49,9 @@ export async function writeLog({
 
   const payload = {
     event,
-    component,
-    userId,
-    message,
+    functionName: functionName || 'unknown - add it in Big!',
+    file,
+    line,
     ...data,
     timestamp: new Date().toISOString()
   };
@@ -46,7 +61,6 @@ export async function writeLog({
   try {
     await log.write(entry);
   } catch (err) {
-    // fallback to console so you don’t lose logs if something breaks
-    console.error(`[writeLog failed]`, err.message, { logName, severity, event });
+    console.error('[writeLog failed]', err.message, { logName, severity, event });
   }
 }

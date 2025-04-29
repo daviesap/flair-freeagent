@@ -3,6 +3,7 @@
 import fetch from 'node-fetch';
 import { getSecret } from '../utils/secrets.js';
 import { refreshTokenIfNeeded } from '../utils/token-utils.js';
+import { writeLog } from '../utils/log.js';
 
 /**
  * HTTP Cloud Function to handle various FreeAgent actions
@@ -54,6 +55,15 @@ async function freeAgentHandler(req, res) {
         const [company, me, cats, banks, projects] = await Promise.all(
           urls.map(u => fetch(u, { headers }).then(r => r.json()))
         );
+
+        await writeLog({
+          logName: 'Freeagent-Actions-Log',
+          severity: 'INFO',
+          functionName: 'getInfo',
+          userId: userId,
+          message: 'Fetched FreeAgent info successfully'
+        });
+
         return res.status(200).json({
           success: true,
           message: 'Fetched FreeAgent info successfully',
@@ -82,6 +92,13 @@ async function freeAgentHandler(req, res) {
           });
         }
         const data = await resp.json();
+        await writeLog({
+          logName: 'Freeagent-Actions-Log',
+          severity: 'INFO',
+          functionName: 'Getting transactions',
+          userId: userId,
+          message: 'Successfully refreshed transactions'
+        });
         return res.status(200).json({
           success: true,
           message: 'Fetched transactions successfully',
@@ -106,7 +123,17 @@ async function freeAgentHandler(req, res) {
         // Delete existing explanation if present
         if (delPath) {
           const d = await fetch(`https://api.freeagent.com${delPath}`, { method: 'DELETE', headers });
-          if (!d.ok) console.warn('delete failed:', await d.text());
+          if (!d.ok) {
+            await writeLog({
+              logName: 'Freeagent-Actions-Log',
+              severity: 'ERROR',
+              functionName: 'AttachReceipt',
+              event: 'Delete failed',
+              data: {
+                responseBody: await d.text()
+              }
+            });
+          }
         }
 
         // Build attachment payload

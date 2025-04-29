@@ -3,31 +3,10 @@
 import { Firestore } from '@google-cloud/firestore';
 import fetch from 'node-fetch';
 import { getSecret } from './secrets.js';
-import { Logging } from '@google-cloud/logging';
+import { writeLog } from './log.js';
 
 const db = new Firestore();
 
-const logging = new Logging();
-
-/**
- * Write a structured log entry to any named log.
- *
- * @param {string} logName    The name of the log (e.g. 'token-refresh-log').
- * @param {string} severity   One of: 'DEFAULT', 'DEBUG', 'INFO', 'NOTICE', 'WARNING', 'ERROR', 'CRITICAL', 'ALERT', 'EMERGENCY'
- * @param {string} message    A human-readable message.
- * @param {object} [data={}]  Any additional JSON payload you want to attach.
- */
-async function writeLog(logName, severity, message, data = {}) {
-  // get (or create) the named log
-  const log = logging.log(logName);
-
-  // build metadata & entry
-  const metadata = { severity };
-  const entry = log.entry(metadata, { message, ...data });
-
-  // write it
-  await log.write(entry);
-}
 
 /**
  * Checks a user’s stored token in Firestore and refreshes it if it’s
@@ -80,12 +59,14 @@ async function refreshTokenIfNeeded(userId) {
   await db.collection('users').doc(userId).set(updated, { merge: true });
 
   // 6) write a log message then Return the fresh access_token
-  await writeLog(
-    'token-refresh-log',
-    'INFO',
-    `Refreshed OAuth token for user ${userId}`,
-    { userId }
-);
+  await writeLog({
+    logName: 'oauth-log',
+    severity: 'INFO',
+    event: 'TokenRefreshed',
+    component: 'token-utils.js',
+    userId: userId,
+    message: 'Successfully refreshed access token'
+  });
 
 
   return updated.access_token;
