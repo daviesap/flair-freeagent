@@ -182,6 +182,14 @@ async function freeAgentHandler(req, res) {
           });
         }
 
+        await writeLog({
+          logName: 'Freeagent-Actions-Log',
+          severity: 'INFO',
+          functionName: 'attachReceipt',
+          userId: userId,
+          message: 'Receipt attached to FreeAgent transaction'
+        });
+
         return res.status(200).json({
           info: {
             success: true,

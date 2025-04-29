@@ -62,16 +62,11 @@ async function refreshTokenIfNeeded(userId) {
   await writeLog({
     logName: 'oauth-log',
     severity: 'INFO',
-    event: 'TokenRefreshed',
-    component: 'token-utils.js',
-    userId: userId,
-    message: 'Successfully refreshed access token'
+    functionName: 'refreshTokenIfNeeded',
+    message: 'Successfully refreshed access token for user ${userId}'
   });
 
-
   return updated.access_token;
-  
-  
   
 }
 
