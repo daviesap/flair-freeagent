@@ -137,7 +137,8 @@ async function adminDashboard(req, res) {
 
     let tableRows = '';
     for (const [userId, tokenData] of Object.entries(tokens)) {
-      const accessToken = tokenData.access_token || 'N/A';
+      //const accessToken = tokenData.access_token || 'N/A';
+      const accessToken = 'N/A'; //For security reasons, we don't show the access token
       const expiresAt = tokenData.expires_at || '';
       const nicelyFormattedExpiry = formatExpiry(expiresAt);
 
