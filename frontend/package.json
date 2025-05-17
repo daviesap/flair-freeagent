@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "deploy:frontend": "npm run build && firebase deploy --only hosting --project flair-freeagent",
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview"
@@ -26,3 +27,4 @@
     "vite": "^6.3.5"
   }
 }
+

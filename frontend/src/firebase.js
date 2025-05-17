@@ -22,4 +22,9 @@ const app = initializeApp(firebaseConfig)
 // Optional: Initialize Analytics if needed (must be used in a browser)
 // const analytics = getAnalytics(app)
 
+//Add authentication
+import { getAuth } from "firebase/auth";
+
+export const auth = getAuth();
+
 export default app
