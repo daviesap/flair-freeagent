@@ -2,6 +2,7 @@
 
 // Import only what you need
 import { initializeApp } from "firebase/app"
+import { getFirestore } from "firebase/firestore";
 // Optional: import analytics only if you’re using it
 // import { getAnalytics } from "firebase/analytics"
 
@@ -26,5 +27,6 @@ const app = initializeApp(firebaseConfig)
 import { getAuth } from "firebase/auth";
 
 export const auth = getAuth();
+export const db = getFirestore();
 
 export default app
