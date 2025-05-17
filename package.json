@@ -13,7 +13,7 @@
   "dependencies": {
     "@google-cloud/firestore": "^7.10.0",
     "@google-cloud/logging": "^11.2.0",
-    "@google-cloud/secret-manager": "^4.2.0",
+    "@google-cloud/secret-manager": "^6.0.1",
     "@tailwindcss/vite": "^4.1.7",
     "google-auth-library": "^9.15.1",
     "node-fetch": "^2.7.0",
